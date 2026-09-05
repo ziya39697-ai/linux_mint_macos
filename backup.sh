@@ -87,6 +87,57 @@ rm -rf "$BUNDLE/local/share/plank"; mkdir -p "$BUNDLE/local/share/plank"
 rsync -a "$HOME/.local/share/plank/themes" "$BUNDLE/local/share/plank/"
 say "share/plank/themes ($(ls "$BUNDLE/local/share/plank/themes" | tr '\n' ' '))"
 
+# Cinnamon extensions (Blur Cinnamon et al). This tree was empty at the first
+# audit, so the section did not exist then; without it the blur setup would be
+# silently uncovered. The matching *settings* live under config/cinnamon/spices/
+# and are already captured by the rsync above.
+rm -rf "$BUNDLE/local/share/cinnamon"; mkdir -p "$BUNDLE/local/share/cinnamon"
+if [[ -d "$HOME/.local/share/cinnamon/extensions" ]]; then
+  rsync -a --exclude '__pycache__' \
+    "$HOME/.local/share/cinnamon/extensions" "$BUNDLE/local/share/cinnamon/"
+  say "share/cinnamon/extensions ($(ls "$BUNDLE/local/share/cinnamon/extensions" | wc -l) installed)"
+fi
+
+# ---------------------------------------------------------------- add-on apps
+# Ulauncher (Spotlight), Newelle (AI assistant), Toshy (Mac keybindings).
+# Each is skipped silently when absent, so this stays correct on a machine where
+# only some of them exist.
+head_ "add-on app configs"
+APPS="$BUNDLE/apps"
+rm -rf "$APPS"; mkdir -p "$APPS"
+
+if [[ -d "$HOME/.config/ulauncher" ]]; then
+  rsync -a --exclude 'cache' --exclude '*.log' "$HOME/.config/ulauncher" "$APPS/"
+  say "ulauncher (settings, shortcuts, extensions, theme)"
+fi
+
+# Newelle keeps GSettings inside the flatpak's own config tree. Take only the
+# keyfile - never the whole app dir, which holds caches and chat history.
+NEWELLE_KF="$HOME/.var/app/io.github.qwersyk.Newelle/config/glib-2.0/settings/keyfile"
+if [[ -f "$NEWELLE_KF" ]]; then
+  mkdir -p "$APPS/newelle"
+  cp -a "$NEWELLE_KF" "$APPS/newelle/keyfile"
+  # Guard: an API key here would land in a public repo. Strip it and say so.
+  if grep -qiE 'api[_-]?key|secret|token' "$APPS/newelle/keyfile"; then
+    sed -i -E "s/^(.*(api[_-]?key|secret|token).*=).*/\1'<REDACTED>'/I" "$APPS/newelle/keyfile"
+    say "newelle (keyfile - CREDENTIAL REDACTED)"
+  else
+    say "newelle (keyfile, no credentials present)"
+  fi
+fi
+
+if [[ -d "$HOME/.config/toshy" ]]; then
+  rsync -a --exclude '*.log' "$HOME/.config/toshy" "$APPS/"
+  say "toshy (Mac-style keybinding config)"
+fi
+
+# Flatpak inventory, so restore knows what to reinstall.
+if command -v flatpak >/dev/null 2>&1; then
+  flatpak list --user   --columns=application,branch --app 2>/dev/null > "$APPS/flatpaks-user.txt"   || true
+  flatpak list --system --columns=application,branch --app 2>/dev/null > "$APPS/flatpaks-system.txt" || true
+  say "flatpak inventory ($(cat "$APPS"/flatpaks-*.txt 2>/dev/null | grep -c .) apps)"
+fi
+
 # ---------------------------------------------------------------- assets
 # The wallpaper and the panel menu icon. Resolved from live dconf so this keeps
 # working after the paths are moved off ~/Downloads.

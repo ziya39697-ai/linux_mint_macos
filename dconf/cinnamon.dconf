@@ -2,6 +2,7 @@
 alttab-switcher-delay=100
 device-aliases=['/org/freedesktop/UPower/devices/battery_BAT0:=DP bq20z451']
 enabled-applets=['panel1:left:0:menu@cinnamon.org:0', 'panel1:left:1:separator@cinnamon.org:1', 'panel1:right:1:systray@cinnamon.org:3', 'panel1:right:2:notifications@cinnamon.org:5', 'panel1:right:4:network@cinnamon.org:10', 'panel1:right:5:sound@cinnamon.org:11', 'panel1:right:3:power@cinnamon.org:12', 'panel1:right:6:calendar@cinnamon.org:16']
+enabled-extensions=['BlurCinnamon@klangman']
 next-applet-id=18
 no-adjacent-panel-barriers=false
 panel-edit-mode=false
@@ -33,6 +34,14 @@ cursor-theme='Bibata-Modern-Classic'
 gtk-theme='WhiteSur-Dark-solid'
 icon-theme='WhiteSur'
 
+[desktop/keybindings]
+custom-list=['custom0']
+
+[desktop/keybindings/custom-keybindings/custom0]
+binding=['<Super>a']
+command='flatpak run io.github.qwersyk.Newelle'
+name='Newelle AI assistant'
+
 [desktop/notifications]
 display-notifications=false
 notification-duration=4
@@ -57,7 +66,7 @@ button-layout='close,maximize,minimize:'
 min-window-opacity=30
 
 [gestures]
-enabled=false
+enabled=true
 pinch-percent-threshold=uint32 40
 swipe-down-2='PUSH_TILE_DOWN::end'
 swipe-down-3='TOGGLE_OVERVIEW::end'

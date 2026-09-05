@@ -168,6 +168,47 @@ if [[ -s "$STAGE/config/bashrc.delta" ]]; then
   fi
 fi
 
+# ---------------------------------------------------------------- add-on apps
+# Cinnamon extensions, then Ulauncher / Newelle / Toshy configs. Each is a
+# no-op when the bundle does not carry it.
+head_ "extensions + add-on apps"
+if [[ -d "$STAGE/local/share/cinnamon/extensions" ]]; then
+  run "mkdir -p '$HOME/.local/share/cinnamon/extensions'"
+  run "rsync -a '$STAGE/local/share/cinnamon/extensions/' '$HOME/.local/share/cinnamon/extensions/'"
+  say "cinnamon extensions ($(ls "$STAGE/local/share/cinnamon/extensions" | tr '\n' ' '))"
+fi
+
+if [[ -d "$STAGE/apps/ulauncher" ]]; then
+  run "mkdir -p '$HOME/.config/ulauncher'"
+  run "rsync -a '$STAGE/apps/ulauncher/' '$HOME/.config/ulauncher/'"
+  say "ulauncher config"
+fi
+
+if [[ -f "$STAGE/apps/newelle/keyfile" ]]; then
+  NKF="$HOME/.var/app/io.github.qwersyk.Newelle/config/glib-2.0/settings"
+  run "mkdir -p '$NKF'"
+  run "cp -a '$STAGE/apps/newelle/keyfile' '$NKF/keyfile'"
+  say "newelle settings"
+  grep -q '<REDACTED>' "$STAGE/apps/newelle/keyfile" 2>/dev/null && \
+    say "  note: an API key was redacted at backup time - re-enter it in Newelle"
+fi
+
+if [[ -d "$STAGE/apps/toshy" ]]; then
+  run "mkdir -p '$HOME/.config/toshy'"
+  run "rsync -a '$STAGE/apps/toshy/' '$HOME/.config/toshy/'"
+  say "toshy config"
+fi
+
+# Flatpaks are listed, not auto-installed: each pulls GBs of runtime and the
+# user should choose when that happens.
+if [[ -s "$STAGE/apps/flatpaks-user.txt" ]]; then
+  say "flatpaks to reinstall by hand:"
+  while read -r app branch; do
+    [[ -z "$app" || "$app" == "Application"* ]] && continue
+    say "    flatpak install --user flathub $app"
+  done < "$STAGE/apps/flatpaks-user.txt"
+fi
+
 # ---------------------------------------------------------------- dconf
 # Cinnamon LAST: the WhiteSur theme's index.theme declares its own icon and
 # cursor themes, and the live dconf values must win over them.
@@ -237,7 +278,9 @@ cat <<'MANUAL'
   - git credentials (~/.git-credentials) - deliberately NOT backed up
   - GPG keys, browser profiles, keyrings - deliberately NOT backed up
   - conky is not autostarted; run `conky &` or add it to ~/.config/autostart
-  - the WhiteSur GTK theme has no upstream clone on disk; this bundle is the only copy
+  - Toshy (if restored): re-run its installer to add the 'input' group, then log out
+  - Ulauncher / Newelle: reinstall the app itself; only their configs are in this bundle
+  - the WhiteSur GTK theme: ~/WhiteSur-gtk-theme holds the upstream source clone
 MANUAL
 
 if (( ! APPLY )); then
