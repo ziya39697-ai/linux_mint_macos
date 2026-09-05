@@ -271,8 +271,6 @@ libopencv-objdetect406t64
 libopencv-video406t64
 libopenh264-7
 libopenni2-0
-libplank1
-libplank-common
 libpmem1
 libpmemobj1
 libpolkit-qt5-1-1
@@ -747,6 +745,7 @@ npm
 ovmf
 pigz
 plank
+plank-reloaded
 plasma-framework
 proj-bin
 proj-data

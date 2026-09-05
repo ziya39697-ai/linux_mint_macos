@@ -1,40 +1,80 @@
 #macOS-style dock: floating, rounded, frosted dark panel.
-
+#Managed by Plank Reloaded - it rewrites this file when keys change.
+#2026-09-05T10:13:49+0000
 [PlankTheme]
 #Rounded on every corner so the dock reads as a floating panel.
 TopRoundness=16
+#The roundness of the bottom corners.
 BottomRoundness=16
+#The thickness (in pixels) of lines drawn.
 LineWidth=1
 #Faint light rim, like the macOS dock edge.
 OuterStrokeColor=255;;255;;255;;48
 #Translucent dark frost, slightly lighter at the top.
 FillStartColor=58;;58;;66;;168
+#The ending color (RGBA) of the fill gradient.
 FillEndColor=32;;32;;38;;198
+#The color (RGBA) of the inner stroke.
 InnerStrokeColor=255;;255;;255;;20
 
 [PlankDockTheme]
 #Padding values are in tenths of a percent of IconSize.
 HorizPadding=3
+#The padding on the top dock edge, in tenths of a percent of IconSize.
 TopPadding=2
 #Lifts the panel off the screen edge so the bottom corners show.
 BottomPadding=3
+#The padding between items on the dock, in tenths of a percent of IconSize.
 ItemPadding=3
+#The color (RGBA) of the indicator.
+IndicatorColor=255;;255;;255;;255
+#The size of item indicators, in tenths of a percent of IconSize.
 IndicatorSize=5
+#'circle' = the small dot macOS puts under a running app.
+IndicatorStyle=2
+#The size of the icon-shadow behind every item, in tenths of a percent of IconSize.
 IconShadowSize=1
+#The height (in percent of IconSize) to bounce an icon when the application sets urgent.
 UrgentBounceHeight=1.6666666666666667
+#The height (in percent of IconSize) to bounce an icon when launching an application.
 LaunchBounceHeight=0.625
+#The opacity value (0 to 1) to fade the dock to when hiding it.
 FadeOpacity=1
+#The amount of time (in ms) for click animations.
 ClickTime=300
+#The amount of time (in ms) to bounce an urgent icon.
 UrgentBounceTime=600
+#The amount of time (in ms) to bounce an icon when launching an application.
 LaunchBounceTime=600
+#The amount of time (in ms) for active window indicator animations.
 ActiveTime=300
+#The amount of time (in ms) to slide icons into/out of the dock.
 SlideTime=300
+#The time (in ms) to fade the dock in/out on a hide (if FadeOpacity is < 1).
 FadeTime=250
+#The time (in ms) to slide the dock in/out on a hide (if FadeOpacity is 1).
 HideTime=250
+#The size of the urgent glow (shown when dock is hidden), in tenths of a percent of IconSize.
 GlowSize=30
+#The total time (in ms) to show the hidden-dock urgent glow.
 GlowTime=10000
+#The time (in ms) of each pulse of the hidden-dock urgent glow.
 GlowPulseTime=2000
+#The hue-shift (-180 to 180) of the urgent indicator color.
 UrgentHueShift=150
+#The time (in ms) to move an item to its new position or its addition/removal to/from the dock.
 ItemMoveTime=450
+#Whether background and icons will unhide/hide with different speeds. The top-border of both will leave/hit the screen-edge at the same time.
 CascadeHide=true
+#The color (RGBA) of the badge displaying urgent count
 BadgeColor=0;;0;;0;;0
+#The badge style, styles: indicator-color, solid
+BadgeStyle=0
+#The color (RGBA) of the badge text
+BadgeTextColor=0;;0;;0;;0
+#The style of the active item, styles: gradient, color-gradient, solid, color-solid, center-gradient, color-center-gradient.
+ActiveItemStyle=0
+#The color (RGBA) of the active item background.
+ActiveItemColor=0;;0;;0;;255
+#The padding before and after a separator, in tenths of a percent of IconSize.
+SeparatorPadding=-1

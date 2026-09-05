@@ -1559,7 +1559,7 @@ pkexec
 pkgconf
 pkgconf-bin
 pkg-config
-plank
+plank-reloaded
 plocate
 plymouth
 plymouth-label
