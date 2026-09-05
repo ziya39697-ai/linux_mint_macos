@@ -1,0 +1,12 @@
+[install]
+flatpak-remotes=['flathub::https://dl.flathub.org/repo/::False']
+installed-apps=['apt:bpfcc-tools', 'apt:bpftrace', 'apt:broadcom-sta-dkms', 'apt:claude-desktop', 'apt:conky-all', 'apt:containerd.io', 'apt:cursor', 'apt:docker-buildx-plugin', 'apt:docker-ce', 'apt:docker-ce-cli', 'apt:docker-compose-plugin', 'apt:fonts-symbola', 'apt:git', 'apt:google-chrome-stable', 'apt:kdenlive', 'apt:linux-hwe-6.14-tools-6.14.0-37', 'apt:plank', 'apt:python3-bpfcc', 'apt:smartmontools', 'apt:ubuntu-kernel-accessories', 'apt:xsensors']
+
+[updates]
+default-repo-is-ok=true
+install-last-run=1786772731
+refresh-last-run=1788592409
+show-welcome-page=false
+window-height=570
+window-pane-position=344
+window-width=790

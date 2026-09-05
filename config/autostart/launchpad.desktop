@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Launchpad (daemon)
+Comment=Keeps Launchpad warm so it opens instantly
+Exec=/home/jiya21/.local/bin/launchpad --daemon
+Icon=view-app-grid
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=8

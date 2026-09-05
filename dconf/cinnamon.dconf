@@ -1,0 +1,98 @@
+[/]
+alttab-switcher-delay=100
+device-aliases=['/org/freedesktop/UPower/devices/battery_BAT0:=DP bq20z451']
+enabled-applets=['panel1:left:0:menu@cinnamon.org:0', 'panel1:left:1:separator@cinnamon.org:1', 'panel1:right:1:systray@cinnamon.org:3', 'panel1:right:2:notifications@cinnamon.org:5', 'panel1:right:4:network@cinnamon.org:10', 'panel1:right:5:sound@cinnamon.org:11', 'panel1:right:3:power@cinnamon.org:12', 'panel1:right:6:calendar@cinnamon.org:16']
+next-applet-id=18
+no-adjacent-panel-barriers=false
+panel-edit-mode=false
+panel-zone-icon-sizes='[{"panelId":1,"left":0,"center":0,"right":24}]'
+panel-zone-symbolic-icon-sizes='[{"panelId": 1, "left": 28, "center": 28, "right": 16}]'
+panel-zone-text-sizes='[{"panelId":1,"left":0,"center":0,"right":0}]'
+panels-autohide=['1:false', '2:false']
+panels-enabled=['1:0:top']
+panels-height=['1:20', '2:40']
+panels-hide-delay=['1:0', '2:0']
+panels-show-delay=['1:0', '2:0']
+show-media-keys-osd=false
+window-effect-speed=1
+
+[desktop/background]
+picture-options='zoom'
+picture-uri='file:///home/jiya21/.local/share/desktop-assets/wallpaper.jpeg'
+
+[desktop/background/slideshow]
+delay=15
+image-source='xml:///usr/share/cinnamon-background-properties/linuxmint-wallpapers.xml'
+
+[desktop/input-sources]
+sources=[('xkb', 'us')]
+
+[desktop/interface]
+cursor-size=24
+cursor-theme='Bibata-Modern-Classic'
+gtk-theme='WhiteSur-Dark-solid'
+icon-theme='WhiteSur'
+
+[desktop/notifications]
+display-notifications=false
+notification-duration=4
+
+[desktop/peripherals/mouse]
+double-click=400
+drag-threshold=8
+speed=1.0
+
+[desktop/peripherals/touchpad]
+send-events='disabled-on-external-mouse'
+speed=0.61764705882352944
+
+[desktop/screensaver]
+layout-group=0
+
+[desktop/sound]
+event-sounds=false
+
+[desktop/wm/preferences]
+button-layout='close,maximize,minimize:'
+min-window-opacity=30
+
+[gestures]
+enabled=false
+pinch-percent-threshold=uint32 40
+swipe-down-2='PUSH_TILE_DOWN::end'
+swipe-down-3='TOGGLE_OVERVIEW::end'
+swipe-down-4='VOLUME_DOWN::end'
+swipe-left-2='PUSH_TILE_LEFT::end'
+swipe-left-3='WORKSPACE_NEXT::end'
+swipe-left-4='WINDOW_WORKSPACE_PREVIOUS::end'
+swipe-percent-threshold=uint32 60
+swipe-right-2='PUSH_TILE_RIGHT::end'
+swipe-right-3='WORKSPACE_PREVIOUS::end'
+swipe-right-4='WINDOW_WORKSPACE_NEXT::end'
+swipe-up-2='PUSH_TILE_UP::end'
+swipe-up-3='TOGGLE_EXPO::end'
+swipe-up-4='VOLUME_UP::end'
+tap-3='MEDIA_PLAY_PAUSE::end'
+
+[muffin]
+draggable-border-width=10
+experimental-features=['scale-monitor-framebuffer', 'x11-randr-fractional-scaling']
+
+[settings-daemon/plugins/color]
+night-light-enabled=true
+night-light-last-coordinates=(22.533332999999999, 88.366667000000007)
+night-light-temperature=uint32 4000
+
+[settings-daemon/plugins/power]
+lid-close-ac-action='suspend'
+lid-close-battery-action='suspend'
+sleep-display-ac=1800
+sleep-display-battery=1800
+sleep-inactive-ac-timeout=0
+sleep-inactive-battery-timeout=0
+
+[settings-daemon/plugins/xsettings]
+buttons-have-icons=false
+
+[theme]
+name='WhiteSur-Dark-solid'

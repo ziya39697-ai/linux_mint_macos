@@ -1,0 +1,19 @@
+conky.config = {
+    alignment = 'top_right',
+    background = false,
+    double_buffer = true,
+    update_interval = 1,
+    own_window = true,
+    own_window_type = 'desktop',
+    border_width = 0,
+    draw_borders = false,
+    draw_shades = false,
+    use_xft = true,
+    font = 'DejaVu Sans:size=10',
+    minimum_width = 180,
+};
+
+conky.text = [[
+CPU: ${execi 1 sensors | grep 'Package id 0' | awk '{print $4}'}
+Fan: ${execi 1 sensors | grep 'Exhaust' | awk '{print $2 " " $3}'}
+]];

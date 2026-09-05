@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Launchpad
+GenericName=Application Launcher
+Comment=Show all applications
+Exec=/home/jiya21/.local/bin/launchpad
+Icon=view-app-grid
+Terminal=false
+Categories=Utility;Core;
+Keywords=apps;applications;launcher;all;grid;
+StartupNotify=false
+StartupWMClass=Launchpad

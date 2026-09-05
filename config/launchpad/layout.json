@@ -1,0 +1,208 @@
+{
+ "version": 1,
+ "items": [
+  {
+   "type": "app",
+   "id": "org.gnome.Calendar.desktop"
+  },
+  {
+   "type": "app",
+   "id": "io.github.celluloid_player.Celluloid.desktop"
+  },
+  {
+   "type": "app",
+   "id": "com.anthropic.Claude.desktop"
+  },
+  {
+   "type": "app",
+   "id": "conky.desktop"
+  },
+  {
+   "type": "app",
+   "id": "cursor.desktop"
+  },
+  {
+   "type": "app",
+   "id": "org.gnome.baobab.desktop"
+  },
+  {
+   "type": "app",
+   "id": "simple-scan.desktop"
+  },
+  {
+   "type": "app",
+   "id": "com.github.maoschanz.drawing.desktop"
+  },
+  {
+   "type": "app",
+   "id": "firefox.desktop"
+  },
+  {
+   "type": "app",
+   "id": "gufw.desktop"
+  },
+  {
+   "type": "app",
+   "id": "google-chrome.desktop"
+  },
+  {
+   "type": "app",
+   "id": "hypnotix.desktop"
+  },
+  {
+   "type": "app",
+   "id": "mint-meta-codecs.desktop"
+  },
+  {
+   "type": "app",
+   "id": "org.kde.kdenlive.desktop"
+  },
+  {
+   "type": "app",
+   "id": "thingy.desktop"
+  },
+  {
+   "type": "app",
+   "id": "libreoffice-startcenter.desktop"
+  },
+  {
+   "type": "app",
+   "id": "libreoffice-calc.desktop"
+  },
+  {
+   "type": "app",
+   "id": "libreoffice-draw.desktop"
+  },
+  {
+   "type": "app",
+   "id": "libreoffice-impress.desktop"
+  },
+  {
+   "type": "app",
+   "id": "libreoffice-writer.desktop"
+  },
+  {
+   "type": "app",
+   "id": "webapp-OnlineChat4519.desktop"
+  },
+  {
+   "type": "app",
+   "id": "pix.desktop"
+  },
+  {
+   "type": "app",
+   "id": "org.gnome.Rhythmbox3.desktop"
+  },
+  {
+   "type": "app",
+   "id": "org.gnome.SystemMonitor.desktop"
+  },
+  {
+   "type": "app",
+   "id": "org.x.editor.desktop"
+  },
+  {
+   "type": "app",
+   "id": "thunderbird.desktop"
+  },
+  {
+   "type": "app",
+   "id": "timeshift-gtk.desktop"
+  },
+  {
+   "type": "app",
+   "id": "transmission-gtk.desktop"
+  },
+  {
+   "type": "app",
+   "id": "webapp-manager.desktop"
+  },
+  {
+   "type": "app",
+   "id": "xsensors.desktop"
+  },
+  {
+   "type": "folder",
+   "id": "f1",
+   "name": "Accessories",
+   "apps": [
+    "org.gnome.FileRoller.desktop",
+    "org.gnome.Calculator.desktop",
+    "gucharmap.desktop",
+    "org.gnome.DiskUtility.desktop",
+    "xreader.desktop",
+    "bulky.desktop",
+    "nemo.desktop",
+    "org.gnome.font-viewer.desktop",
+    "xviewer.desktop",
+    "sticky.desktop",
+    "onboard.desktop",
+    "org.gnome.seahorse.Application.desktop",
+    "plank.desktop",
+    "org.gnome.Screenshot.desktop",
+    "mintstick.desktop",
+    "mintstick-format.desktop",
+    "cinnamon-onscreen-keyboard.desktop",
+    "org.x.Warpinator.desktop"
+   ]
+  },
+  {
+   "type": "folder",
+   "id": "f2",
+   "name": "Preferences",
+   "apps": [
+    "cinnamon-settings-universal-access.desktop",
+    "cinnamon-settings-user.desktop",
+    "cinnamon-settings-actions.desktop",
+    "nm-connection-editor.desktop",
+    "cinnamon-settings-applets.desktop",
+    "cinnamon-settings-backgrounds.desktop",
+    "mintbackup.desktop",
+    "blueman-manager.desktop",
+    "cinnamon-color-panel.desktop",
+    "cinnamon-settings-calendar.desktop",
+    "cinnamon-settings-desklets.desktop",
+    "cinnamon-settings-desktop.desktop",
+    "cinnamon-display-panel.desktop",
+    "mintdrivers.desktop",
+    "cinnamon-settings-effects.desktop",
+    "cinnamon-settings-extensions.desktop",
+    "fingwit.desktop",
+    "cinnamon-settings-fonts.desktop",
+    "cinnamon-settings-general.desktop",
+    "cinnamon-settings-gestures.desktop",
+    "cinnamon-wacom-panel.desktop",
+    "cinnamon-settings-hotcorner.desktop",
+    "mintlocale-im.desktop",
+    "cinnamon-settings-keyboard.desktop",
+    "mintlocale.desktop",
+    "lightdm-settings.desktop",
+    "cinnamon-settings-mouse.desktop",
+    "cinnamon-network-panel.desktop",
+    "cinnamon-settings-nightlight.desktop",
+    "cinnamon-settings-notifications.desktop",
+    "gnome-online-accounts-gtk.desktop",
+    "cinnamon-settings-panel.desktop",
+    "cinnamon-settings-power.desktop",
+    "cinnamon-settings-default.desktop",
+    "system-config-printer.desktop",
+    "cinnamon-settings-privacy.desktop",
+    "cinnamon-settings-screensaver.desktop",
+    "mintinstall.desktop",
+    "mintsources.desktop",
+    "cinnamon-settings-sound.desktop",
+    "cinnamon-settings-startup.desktop",
+    "mintsysadm.desktop",
+    "mintreport.desktop",
+    "cinnamon-settings.desktop",
+    "cinnamon-settings-themes.desktop",
+    "cinnamon-settings-thunderbolt.desktop",
+    "mintupdate.desktop",
+    "cinnamon-settings-users.desktop",
+    "mintwelcome.desktop",
+    "cinnamon-settings-windows.desktop",
+    "cinnamon-settings-workspaces.desktop"
+   ]
+  }
+ ]
+}

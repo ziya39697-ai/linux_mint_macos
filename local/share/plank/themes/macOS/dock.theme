@@ -1,0 +1,40 @@
+#macOS-style dock: floating, rounded, frosted dark panel.
+
+[PlankTheme]
+#Rounded on every corner so the dock reads as a floating panel.
+TopRoundness=16
+BottomRoundness=16
+LineWidth=1
+#Faint light rim, like the macOS dock edge.
+OuterStrokeColor=255;;255;;255;;48
+#Translucent dark frost, slightly lighter at the top.
+FillStartColor=58;;58;;66;;168
+FillEndColor=32;;32;;38;;198
+InnerStrokeColor=255;;255;;255;;20
+
+[PlankDockTheme]
+#Padding values are in tenths of a percent of IconSize.
+HorizPadding=3
+TopPadding=2
+#Lifts the panel off the screen edge so the bottom corners show.
+BottomPadding=3
+ItemPadding=3
+IndicatorSize=5
+IconShadowSize=1
+UrgentBounceHeight=1.6666666666666667
+LaunchBounceHeight=0.625
+FadeOpacity=1
+ClickTime=300
+UrgentBounceTime=600
+LaunchBounceTime=600
+ActiveTime=300
+SlideTime=300
+FadeTime=250
+HideTime=250
+GlowSize=30
+GlowTime=10000
+GlowPulseTime=2000
+UrgentHueShift=150
+ItemMoveTime=450
+CascadeHide=true
+BadgeColor=0;;0;;0;;0

@@ -1,0 +1,6 @@
+[docks/dock1]
+dock-items=['nemo.dockitem', 'launchpad.dockitem', 'cursor.dockitem', 'cinnamon-settings.dockitem', 'google-chrome.dockitem', 'org.gnome.Terminal.dockitem']
+hide-mode='dodge-maximized'
+icon-size=56
+theme='macOS'
+zoom-enabled=true

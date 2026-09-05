@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Exec=plank
+X-GNOME-Autostart-enabled=true
+NoDisplay=false
+Hidden=false
+Name[en_IN]=Plank
+Comment[en_IN]=macos_style_dock
+X-GNOME-Autostart-Delay=0
