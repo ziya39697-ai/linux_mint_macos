@@ -31,6 +31,7 @@ sources=[('xkb', 'us')]
 [desktop/interface]
 cursor-size=24
 cursor-theme='Bibata-Modern-Classic'
+font-name='Inter 10'
 gtk-theme='WhiteSur-Dark-solid'
 icon-theme='WhiteSur'
 
@@ -64,6 +65,7 @@ event-sounds=false
 [desktop/wm/preferences]
 button-layout='close,maximize,minimize:'
 min-window-opacity=30
+titlebar-font='Inter Medium 10'
 
 [gestures]
 enabled=true

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Ulauncher
+Comment=Application launcher (Spotlight-style)
+Exec=ulauncher --hide-window --no-window-shadow
+Icon=ulauncher
+Terminal=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3
