@@ -22,7 +22,11 @@ nothing is written until you pass `--apply`.
 
 A macOS-shaped Cinnamon: a single 20px top panel, window buttons on the **left**,
 WhiteSur GTK theme + icons, Bibata cursors, Plank as the dock with a hand-written
-`macOS` dock theme, and a custom full-screen Launchpad in place of an app menu.
+`macOS` dock theme tuned to the macOS 26/27 Liquid Glass look, and a custom Launchpad
+that reproduces macOS 26/27's Spotlight *Applications* window (search field, category
+pills, one alphabetical grid; list view under ⋯) in place of an app menu. Nemo is skinned
+as the macOS 27 Golden Gate Finder (`config/gtk-3.0/finder.css`: edge-to-edge sidebar
+with coloured icons, defined toolbar buttons, plain status bar; menu bar hidden).
 The panel's left end is the `apple-menu@jiya21` applet (an  menu: About This Mac,
 System Settings, App Store, Recent Items, Force Quit, Sleep/Restart/Shut Down, Lock
 Screen, Log Out), its right end the `control-center@jiya21` applet; the stock Mint
@@ -37,14 +41,15 @@ There is no window-list applet — Plank does that job.
 | `config/cinnamon/spices/` | Applet settings — calendar format `%a %b %-d  %-I:%M %p` (macOS-style, 12-hour), Control Center options |
 | `local/share/cinnamon/applets/` | The hand-written applets: `apple-menu@jiya21` (Apple logo SVG, About This Mac window, Force Quit dialog), `control-center@jiya21`, `spotlight@jiya21` |
 | `config/plank/` | The 6 dock items and their order |
-| `config/launchpad/layout.json` | Launchpad page/grid layout (30 apps + 2 folders) |
+| `config/launchpad/` | Launchpad state (`view` = grid/list; `layout.json` is left over from the old paged Launchpad and unused) |
 | `config/autostart/` | Plank + Launchpad daemon autostart entries |
 | `config/bashrc.delta` | **Only** the lines appended to the stock `/etc/skel/.bashrc` |
-| `local/bin/launchpad` | The custom ~1900-line Python/GTK3 Launchpad, mode 755 |
+| `local/bin/launchpad` | The custom Python/GTK3 Launchpad (Applications window), mode 755 |
 | `local/share/plank/themes/macOS/` | The hand-authored frosted-glass dock theme |
 | `assets/` | Wallpaper |
 | `themes/` | `WhiteSur-Dark-solid` GTK/Cinnamon theme (4.1 MB) |
-| `icons/` | `WhiteSur`, `-dark`, `-light` (103 MB) + the `default` cursor stubs |
+| `icons/` | `WhiteSur`, `-dark`, `-light` (103 MB) + the `default` cursor stubs. WhiteSur's `xsi-*` place/device glyphs are tagged for colouring (see `tools/`) |
+| `tools/tag-xsi-symbolic.py` | Re-tags WhiteSur's `xsi-*` symbolic glyphs so Nemo's sidebar can colour them (run again after rebuilding the icon theme) |
 | `packages/intentional.txt` | The 21 packages actually chosen, per Mint's own record |
 | `packages/sources.list.d/` | The third-party apt repos those need |
 | `manifest.json` | Host/version metadata + sha256 of every file outside `icons/` |

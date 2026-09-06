@@ -1452,20 +1452,26 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._swapGtkCss(want);
     }
 
-    /* ~/.config/gtk-3.0/gtk.css is a hand-written dark-only restyle.  It is
-     * kept as gtk.css.dark and gtk.css is a symlink to it only in dark mode.
-     * A real (non-symlink) gtk.css is never touched. */
+    /* ~/.config/gtk-3.0/gtk.css is a symlink the applet owns: gtk.css.dark
+     * (the dark-only cinnamon-settings restyle + the Finder skin) in dark
+     * mode, gtk.css.light (just the Finder skin) in light mode.  A real
+     * (non-symlink) gtk.css is never touched. */
     _swapGtkCss(dark) {
         try {
             let dir = GLib.get_user_config_dir() + "/gtk-3.0";
-            if (!GLib.file_test(dir + "/gtk.css.dark", GLib.FileTest.EXISTS)) return;
+            let target = dark ? "gtk.css.dark" : "gtk.css.light";
+            if (!GLib.file_test(dir + "/" + target, GLib.FileTest.EXISTS)) target = null;
             let link = Gio.file_new_for_path(dir + "/gtk.css");
-            let exists = GLib.file_test(dir + "/gtk.css", GLib.FileTest.EXISTS) ||
-                         GLib.file_test(dir + "/gtk.css", GLib.FileTest.IS_SYMLINK);
-            if (exists && !GLib.file_test(dir + "/gtk.css", GLib.FileTest.IS_SYMLINK))
-                return;
-            if (dark && !exists)       link.make_symbolic_link("gtk.css.dark", null);
-            else if (!dark && exists)  link.delete(null);
+            let isLink = GLib.file_test(dir + "/gtk.css", GLib.FileTest.IS_SYMLINK);
+            let exists = isLink || GLib.file_test(dir + "/gtk.css", GLib.FileTest.EXISTS);
+            if (exists && !isLink) return;
+            if (isLink) {
+                let info = link.query_info("standard::symlink-target",
+                                           Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+                if (info.get_symlink_target() === target) return;
+                link.delete(null);
+            }
+            if (target) link.make_symbolic_link(target, null);
         } catch (e) {
             log_err("swapping gtk.css", e);
         }

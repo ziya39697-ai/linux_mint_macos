@@ -1,0 +1,133 @@
+/* ============================================================
+   Nemo as the macOS 27 "Golden Gate" Finder
+   ------------------------------------------------------------
+   Golden Gate pulled Tahoe's floating glass sidebar back to the
+   window edge, gave it a contrasting background and coloured
+   icons, made toolbar buttons legible again and squared the
+   window up a little.  Nemo already has the same bones (sidebar,
+   toolbar, breadcrumb, status bar); this only re-skins them.
+
+   Theme-agnostic on purpose: every colour is derived from the
+   GTK theme's own @theme_* colours, so it works under both
+   WhiteSur-Dark-solid and WhiteSur-Light-solid.  Imported by
+   gtk.css.dark and gtk.css.light (the Control Center's Dark
+   Mode tile symlinks gtk.css to one of them).
+
+   Hooks (from nemo's source): .nemo-window on the window,
+   .sidebar on the sidebar box, .nemo-places-sidebar on its
+   scrolledwindow, .primary-toolbar on the toolbar, .path-bar
+   on the breadcrumb, .toolbar on the status bar.
+   ============================================================ */
+
+/* --- Sidebar: edge to edge, a shade apart from the content,
+       13px labels, blue place glyphs (Golden Gate gave sidebar
+       icons their colour back).  GTK's cell renderers ignore
+       -gtk-icon-style, so the colour comes from the symbolic
+       palette: the theme's xsi-* place/device glyphs carry
+       class="success" on every shape (tools/tag-xsi-symbolic.py
+       in the backup bundle), the rule below paints that slot blue
+       in the sidebar, and the global rule at the top keeps it at
+       the text colour everywhere else. --- */
+
+* {
+    -gtk-icon-palette: success currentColor, warning #ffb340, error #ff5f57;
+}
+
+.nemo-window.background .sidebar,
+.nemo-window.background .sidebar .nemo-places-sidebar,
+.nemo-window.background .sidebar scrolledwindow {
+    background-color: mix(@theme_bg_color, @theme_fg_color, 0.07);
+    border: none;
+    box-shadow: none;
+}
+.nemo-window.background .sidebar .view,
+.nemo-window.background .sidebar treeview {
+    background-color: transparent;
+    font-size: 13px;
+    -gtk-icon-palette: success #2e8bff, warning #ffb340, error #ff5f57;
+    -GtkTreeView-vertical-separator: 8;
+    -GtkTreeView-horizontal-separator: 10;
+}
+.nemo-window.background .sidebar .view:selected,
+.nemo-window.background .sidebar .view:selected:hover,
+.nemo-window.background .sidebar .view:selected:focus {
+    background-color: alpha(@theme_fg_color, 0.14);
+    color: @theme_fg_color;
+}
+.nemo-window.background .sidebar .view:hover {
+    background-color: alpha(@theme_fg_color, 0.06);
+}
+/* the sidebar/content divider */
+.nemo-window.background paned > separator {
+    background-color: alpha(@theme_fg_color, 0.12);
+    min-width: 1px;
+}
+
+/* --- Toolbar: quiet bar, defined buttons --- */
+.nemo-window.background .primary-toolbar {
+    background-color: @theme_bg_color;
+    padding: 5px 8px;
+    border: none;
+    box-shadow: inset 0 -1px alpha(@theme_fg_color, 0.10);
+}
+.nemo-window.background .primary-toolbar > button,
+.nemo-window.background .primary-toolbar button.flat {
+    min-height: 26px;
+    min-width: 26px;
+    padding: 0 6px;
+    border-radius: 7px;
+    background-color: alpha(@theme_fg_color, 0.06);
+    border: 1px solid alpha(@theme_fg_color, 0.06);
+    box-shadow: none;
+    margin: 0 2px;
+}
+.nemo-window.background .primary-toolbar > button:hover,
+.nemo-window.background .primary-toolbar button.flat:hover {
+    background-color: alpha(@theme_fg_color, 0.12);
+}
+.nemo-window.background .primary-toolbar > button:checked,
+.nemo-window.background .primary-toolbar button.flat:checked {
+    background-color: alpha(@theme_fg_color, 0.18);
+}
+.nemo-window.background .primary-toolbar > button:disabled,
+.nemo-window.background .primary-toolbar button.flat:disabled {
+    background-color: alpha(@theme_fg_color, 0.03);
+    border-color: transparent;
+}
+/* breadcrumb: Finder shows the current folder as a title */
+.nemo-window.background .primary-toolbar .path-bar button {
+    font-weight: 600;
+    border-radius: 7px;
+}
+.nemo-window.background .primary-toolbar entry {
+    border-radius: 8px;
+    min-height: 26px;
+}
+
+/* --- Content --- */
+.nemo-window.background .nemo-window-pane,
+.nemo-window.background .nemo-window-pane .view {
+    background-color: @theme_base_color;
+}
+
+/* --- Status bar: just the summary text; the sidebar toggle
+       buttons Finder never had are collapsed away. --- */
+.nemo-window.background .toolbar:not(.primary-toolbar) {
+    background-color: @theme_bg_color;
+    padding: 1px 6px;
+    font-size: 11px;
+    border: none;
+    box-shadow: inset 0 1px alpha(@theme_fg_color, 0.10);
+}
+.nemo-window.background .toolbar:not(.primary-toolbar) button {
+    opacity: 0;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    border: none;
+    -gtk-icon-transform: scale(0);
+}
+.nemo-window.background .toolbar:not(.primary-toolbar) label {
+    color: alpha(@theme_fg_color, 0.7);
+}

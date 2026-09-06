@@ -2,32 +2,32 @@
 #Managed by Plank Reloaded - it rewrites this file when keys change.
 #2026-09-05T10:13:49+0000
 [PlankTheme]
-#Rounded on every corner so the dock reads as a floating panel.
-TopRoundness=16
+#Liquid Glass: near-capsule corners on a 56 px dock.
+TopRoundness=24
 #The roundness of the bottom corners.
-BottomRoundness=16
+BottomRoundness=24
 #The thickness (in pixels) of lines drawn.
 LineWidth=1
-#Faint light rim, like the macOS dock edge.
-OuterStrokeColor=255;;255;;255;;48
-#Translucent dark frost, slightly lighter at the top.
-FillStartColor=58;;58;;66;;70
-#The ending color (RGBA) of the fill gradient.
-FillEndColor=32;;32;;38;;95
-#The color (RGBA) of the inner stroke.
-InnerStrokeColor=255;;255;;255;;20
+#Bright specular rim, the glass edge catching light.
+OuterStrokeColor=255;;255;;255;;92
+#Clear frosted glass: a light tint that lets the wallpaper through.
+FillStartColor=160;;165;;178;;58
+#Slightly denser toward the bottom edge.
+FillEndColor=90;;92;;104;;80
+#Soft inner highlight.
+InnerStrokeColor=255;;255;;255;;34
 
 [PlankDockTheme]
 #Padding values are in tenths of a percent of IconSize.
-HorizPadding=3
+HorizPadding=2
 #The padding on the top dock edge, in tenths of a percent of IconSize.
-TopPadding=2
-#Lifts the panel off the screen edge so the bottom corners show.
-BottomPadding=3
-#The padding between items on the dock, in tenths of a percent of IconSize.
-ItemPadding=3
+TopPadding=1
+#Lifts the panel off the screen edge so the capsule floats.
+BottomPadding=2
+#Breathing room between icons, like the macOS 26 dock.
+ItemPadding=2
 #The color (RGBA) of the indicator.
-IndicatorColor=255;;255;;255;;230
+IndicatorColor=255;;255;;255;;235
 #The size of item indicators, in tenths of a percent of IconSize.
 IndicatorSize=1
 #Solid dot. Style 0 ignores IndicatorColor (uses the GTK theme colour - blue).

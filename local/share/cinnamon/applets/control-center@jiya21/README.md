@@ -74,10 +74,10 @@ Flips the WhiteSur pair `WhiteSur-Dark-solid` ↔ `WhiteSur-Light-solid` for
 `org.x.apps.portal color-scheme` (`prefer-dark` / `default`) for portal and
 libadwaita apps, and toggles `cc-light` on this applet's own menus.
 
-`~/.config/gtk-3.0/gtk.css` was a hand-written dark-only restyle of
-cinnamon-settings; it now lives as `gtk.css.dark`, and the tile symlinks
-`gtk.css` → `gtk.css.dark` only while dark mode is on.  A real (non-symlink)
-`gtk.css` is never touched.  The light theme was unpacked from
+`~/.config/gtk-3.0/gtk.css` is a symlink the tile owns: `gtk.css.dark`
+(the hand-written dark-only restyle of cinnamon-settings plus the Finder skin
+`finder.css`) while dark mode is on, `gtk.css.light` (just the Finder skin)
+otherwise.  A real (non-symlink) `gtk.css` is never touched.  The light theme was unpacked from
 `~/WhiteSur-gtk-theme/release/WhiteSur-Light-solid.tar.xz` into `~/.themes`.
 
 ## Two menus, two source actors

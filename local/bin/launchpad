@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
-"""macOS-style Launchpad for Linux Mint Cinnamon + Plank.
+"""Launchpad — the macOS 26/27 "Applications" window, for Linux Mint Cinnamon.
 
-A full-screen, paged, frosted-glass application launcher driven by Gio.AppInfo,
-with macOS-style folders (auto-organised on first run, and creatable by
-dragging one app onto another).
+macOS 26 Tahoe retired the paged, foldered Launchpad for Spotlight's
+Applications view, and macOS 27 Golden Gate keeps it: a floating glass window
+with one big search field (the apps glyph at its left, a ⋯ menu at its right),
+a row of category pills under it, and one alphabetical grid of apps.  This is
+that window, built to stay cheap:
+
+  * one Gtk.FlowBox, one plain Image+Label tile per app, no custom drawing,
+    no per-tile animation, no drag-and-drop, no folders;
+  * icons come from GTK's own icon cache;
+  * the frosted backdrop is one root grab per open, blurred by downscaling,
+    and dropped again when the window hides;
+  * category / search changes are FlowBox filter+sort passes, never rebuilds.
+
+Categories come from the .desktop Categories key.  Right-click a tile for
+Add to Dock.  The ⋯ menu switches between the grid and a compact list.
 """
 
 import ast
-import json
 import math
 import os
-import shlex
 import subprocess
 import sys
 
@@ -24,63 +34,57 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango  # noqa: E402
 
 APP_ID = "com.mindcres.launchpad"
 SELF_DESKTOP = "launchpad.desktop"
+IFACE_SCHEMA = "org.cinnamon.desktop.interface"
 
-ICON_PX = 96
-MINI_PX = 32          # icons inside a folder preview
-TILE_W = 152
-# icon area (ICON_PX + 20) + 6px spacing + a two-line label. This is the real
-# rendered height; setting it lower just makes row arithmetic wrong, because
-# the size request is only a minimum.
-TILE_H = 156
-COL_SPACING = 26
-ROW_SPACING = 18
-SIDE_MARGIN = 90
-TOP_AREA = 74
-DOTS_AREA = 40
-FOLDER_COLS = 5
-FOLDER_CHROME = 150  # panel padding + name field + screen margin
-
-OPEN_MS = 190
-HOVER_MS = 140
-HOVER_SCALE = 1.12
-PRESS_SCALE = 0.94
-DRAG_THRESHOLD = 10
-SWIPE_MIN = 55
-PAGE_COOLDOWN_US = 260000   # debounce for smooth-scroll page flips
-JIGGLE_DEG = 1.6
+WIN_W, WIN_H = 760, 560      # Tahoe's Applications window at 1440x900
+RADIUS = 22
+ICON_PX = 56
+TILE_W = 118
+LIST_ICON_PX = 32
+OPEN_MS = 140
 
 CONFIG_DIR = os.path.expanduser("~/.config/launchpad")
-LAYOUT_PATH = os.path.join(CONFIG_DIR, "layout.json")
+VIEW_PATH = os.path.join(CONFIG_DIR, "view")
 
 PLANK_DCONF = "/net/launchpad/plank/docks/dock1/dock-items"
 PLANK_LAUNCHERS = os.path.expanduser("~/.config/plank/dock1/launchers")
 
-RESERVE_DOCK = os.environ.get("LAUNCHPAD_RESERVE_DOCK", "0") == "1"
-
-DND_ITEM = "application/x-launchpad-item"
-
-# First-match wins. Ordered so real applications claim their category before
-# the huge Settings bucket sweeps up every control panel.
-# Only these groups collapse into a folder. Everything else - Development,
-# Graphics, Office, Media, Internet, System, Games - stays a loose icon on the
-# grid, the way macOS ships with only Utilities and Other as folders.
-# Add a name here to fold that group too.
-FOLDER_CATEGORIES = {"Accessories", "Preferences", "Administration", "Other"}
-FOLDER_MIN = 3        # smaller groups are not worth a folder
-
-FOLDER_RULES = [
-    ("Games",        ("Game",)),
-    ("Development",  ("Development", "IDE", "TextEditor")),
-    ("Graphics",     ("Graphics", "Photography", "Scanning")),
-    ("Office",       ("Office", "WordProcessor", "Spreadsheet", "Presentation")),
-    ("Media",        ("AudioVideo", "Audio", "Video", "Player")),
-    ("Internet",     ("Network", "WebBrowser", "Email", "InstantMessaging")),
-    ("Accessories",  ("Utility", "Accessories", "Archiving", "Calculator")),
-    ("Administration", ("Administration", "PackageManager", "Security")),
-    ("Preferences",  ("Settings", "HardwareSettings", "DesktopSettings",
-                      "X-XFCE-SettingsDialog", "X-Cinnamon-Settings-Panel")),
-    ("System",       ("System", "Monitor", "Filesystem")),
+# Category pills, in Apple's order.  Rules match in RULE_ORDER so a real
+# application claims its category before the huge Settings bucket does.
+CATEGORIES = [
+    ("productivity",  "Productivity & Finance"),
+    ("utilities",     "Utilities"),
+    ("creativity",    "Creativity"),
+    ("social",        "Social"),
+    ("entertainment", "Entertainment"),
+    ("information",   "Information & Reading"),
+    ("developer",     "Developer Tools"),
+    ("games",         "Games"),
+    ("system",        "System"),
+    ("other",         "Other"),
 ]
+RULES = {
+    "games":         ("Game",),
+    "developer":     ("Development", "IDE", "TextEditor", "Debugger"),
+    "creativity":    ("Graphics", "Photography", "Scanning", "AudioVideoEditing",
+                      "RasterGraphics", "VectorGraphics", "Music", "Recorder"),
+    "social":        ("Email", "InstantMessaging", "Chat", "VideoConference",
+                      "Telephony", "Contacts"),
+    "entertainment": ("AudioVideo", "Audio", "Video", "Player", "TV"),
+    "information":   ("WebBrowser", "News", "Feed", "Dictionary", "Documentation",
+                      "Viewer", "Maps", "Weather"),
+    "productivity":  ("Office", "WordProcessor", "Spreadsheet", "Presentation",
+                      "Calendar", "Finance", "ProjectManagement", "Calculator",
+                      "TextTools"),
+    "utilities":     ("Utility", "Accessories", "Archiving", "X-GNOME-Utilities",
+                      "Monitor", "Filesystem", "Clock", "Network", "FileTransfer"),
+    "system":        ("Settings", "HardwareSettings", "DesktopSettings",
+                      "X-XFCE-SettingsDialog", "X-Cinnamon-Settings-Panel",
+                      "X-GNOME-Settings-Panel", "System", "Administration",
+                      "PackageManager", "Security"),
+}
+RULE_ORDER = ["games", "developer", "creativity", "social", "entertainment",
+              "information", "productivity", "utilities", "system"]
 
 
 # --------------------------------------------------------------------------- #
@@ -89,32 +93,6 @@ FOLDER_RULES = [
 
 def ease_out(t):
     return 1.0 - pow(1.0 - t, 3)
-
-
-def run_bg(argv):
-    try:
-        subprocess.Popen(argv, start_new_session=True)
-        return True
-    except Exception as exc:
-        print("launchpad: %s failed: %s" % (argv[0], exc), file=sys.stderr)
-        return False
-
-
-class Canvas(Gtk.DrawingArea):
-    """A DrawingArea that owns no GdkWindow.
-
-    GtkDrawingArea normally creates its own window, and a child's window is
-    created after its parent's - so it lands *above* the EventBox's input
-    window no matter what set_above_child() says, and swallows every crossing
-    and motion event over the icon. That is why hover only worked on the label.
-    With no window of its own the events reach the EventBox instead, which is
-    what makes hover, dragging and clicking work anywhere on a tile. It also
-    saves one X window per tile.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.set_has_window(False)
 
 
 def rounded_rect(cr, x, y, w, h, r):
@@ -126,18 +104,17 @@ def rounded_rect(cr, x, y, w, h, r):
     cr.close_path()
 
 
-def capture_backdrop(width, height):
+def capture_backdrop(x, y, width, height):
+    """Grab what is under the window and blur it by downscaling: two bilinear
+    passes then a stretch back, about the cost of one frame, once per open."""
     try:
         root = Gdk.get_default_root_window()
-        shot = Gdk.pixbuf_get_from_window(root, 0, 0, root.get_width(),
-                                          root.get_height())
+        shot = Gdk.pixbuf_get_from_window(root, x, y, width, height)
         if shot is None:
             return None
-        small = shot.scale_simple(max(1, shot.get_width() // 28),
-                                  max(1, shot.get_height() // 28),
+        small = shot.scale_simple(max(1, width // 24), max(1, height // 24),
                                   GdkPixbuf.InterpType.BILINEAR)
-        mid = small.scale_simple(max(1, shot.get_width() // 4),
-                                 max(1, shot.get_height() // 4),
+        mid = small.scale_simple(max(1, width // 6), max(1, height // 6),
                                  GdkPixbuf.InterpType.BILINEAR)
         return mid.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)
     except Exception as exc:
@@ -145,63 +122,21 @@ def capture_backdrop(width, height):
         return None
 
 
-def plank_window():
+def plank_height(default=120):
     try:
         out = subprocess.check_output(["wmctrl", "-lxG"], text=True,
-                                      stderr=subprocess.DEVNULL)
+                                      stderr=subprocess.DEVNULL, timeout=2)
     except Exception:
-        return None
+        return default
     for line in out.splitlines():
         parts = line.split(None, 7)
-        if len(parts) < 7 or "plank" not in parts[6].lower():
-            continue
-        try:
-            return (parts[0], int(parts[2]), int(parts[3]),
-                    int(parts[4]), int(parts[5]))
-        except ValueError:
-            return None
-    return None
-
-
-def plank_height(default=140):
-    info = plank_window()
-    return info[4] if info and info[4] > 0 else default
-
-
-_icon_cache = {}
-
-
-def load_icon(app, size):
-    key = (app.get_id(), size)
-    if key in _icon_cache:
-        return _icon_cache[key]
-    theme = Gtk.IconTheme.get_default()
-    pixbuf = None
-    gicon = app.get_icon()
-    if gicon is not None:
-        try:
-            info = theme.lookup_by_gicon(gicon, size,
-                                         Gtk.IconLookupFlags.FORCE_SIZE)
-            if info is not None:
-                pixbuf = info.load_icon()
-        except GLib.Error:
-            pixbuf = None
-        if pixbuf is None and isinstance(gicon, Gio.FileIcon):
+        if len(parts) >= 7 and "plank" in parts[6].lower():
             try:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(
-                    gicon.get_file().get_path(), size, size)
-            except GLib.Error:
-                pixbuf = None
-    if pixbuf is None:
-        try:
-            pixbuf = theme.load_icon("application-x-executable", size,
-                                     Gtk.IconLookupFlags.FORCE_SIZE)
-        except GLib.Error:
-            pixbuf = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, True, 8,
-                                          size, size)
-            pixbuf.fill(0x00000000)
-    _icon_cache[key] = pixbuf
-    return pixbuf
+                h = int(parts[5])
+                return h if h > 0 else default
+            except ValueError:
+                pass
+    return default
 
 
 def search_haystack(app):
@@ -227,174 +162,51 @@ def all_apps():
 
 
 def categorise(app):
-    """Return the folder name this app belongs in, or None to leave it loose."""
     cats = set((app.get_categories() or "").split(";"))
-    for name, keys in FOLDER_RULES:
-        if cats.intersection(keys):
-            return name
-    return "Other"
+    for cid in RULE_ORDER:
+        if cats.intersection(RULES[cid]):
+            return cid
+    return "other"
+
+
+def is_dark_theme():
+    try:
+        src = Gio.SettingsSchemaSource.get_default()
+        if src is None or src.lookup(IFACE_SCHEMA, True) is None:
+            return True
+        return "-Dark" in Gio.Settings(schema_id=IFACE_SCHEMA).get_string("gtk-theme")
+    except Exception:
+        return True
+
+
+def run_bg(argv):
+    try:
+        subprocess.Popen(argv, start_new_session=True)
+        return True
+    except Exception as exc:
+        print("launchpad: %s failed: %s" % (argv[0], exc), file=sys.stderr)
+        return False
+
+
+def load_view():
+    try:
+        with open(VIEW_PATH) as fh:
+            return "list" if fh.read().strip() == "list" else "grid"
+    except OSError:
+        return "grid"
+
+
+def save_view(view):
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(VIEW_PATH, "w") as fh:
+            fh.write(view)
+    except OSError:
+        pass
 
 
 # --------------------------------------------------------------------------- #
-#  Layout persistence
-# --------------------------------------------------------------------------- #
-
-class Layout:
-    """Top-level ordering of folders and loose apps, persisted as JSON."""
-
-    def __init__(self):
-        self.items = []          # {"type":"folder","id","name","apps":[ids]} | {"type":"app","id"}
-        self._next_folder = 1
-
-    # -- construction ---------------------------------------------------- #
-
-    def new_folder_id(self):
-        while True:
-            fid = "f%d" % self._next_folder
-            self._next_folder += 1
-            if not any(i["type"] == "folder" and i["id"] == fid
-                       for i in self.items):
-                return fid
-
-    @classmethod
-    def auto(cls, apps):
-        """Loose icons for real applications, folders for the utility buckets."""
-        layout = cls()
-        buckets = {}
-        for app in apps:
-            buckets.setdefault(categorise(app), []).append(app.get_id())
-
-        folders, loose = [], []
-        for name in [n for n, _ in FOLDER_RULES] + ["Other"]:
-            ids = buckets.get(name)
-            if not ids:
-                continue
-            if name in FOLDER_CATEGORIES and len(ids) >= FOLDER_MIN:
-                folders.append({"type": "folder", "id": layout.new_folder_id(),
-                                "name": name, "apps": ids})
-            else:
-                loose.extend(ids)
-
-        # `apps` arrives alphabetical, so reuse its order for the loose icons
-        rank = {a.get_id(): i for i, a in enumerate(apps)}
-        loose.sort(key=lambda i: rank.get(i, 0))
-        # folders last, like the Utilities folder at the end of Launchpad
-        layout.items = [{"type": "app", "id": i} for i in loose] + folders
-        return layout
-
-    # -- persistence ------------------------------------------------------ #
-
-    def save(self):
-        try:
-            os.makedirs(CONFIG_DIR, exist_ok=True)
-            tmp = LAYOUT_PATH + ".tmp"
-            with open(tmp, "w") as fh:
-                json.dump({"version": 1, "items": self.items}, fh, indent=1)
-            os.replace(tmp, LAYOUT_PATH)
-        except OSError as exc:
-            print("launchpad: could not save layout: %s" % exc, file=sys.stderr)
-
-    @classmethod
-    def load(cls, apps):
-        known = {a.get_id(): a for a in apps}
-        layout = cls()
-        raw = None
-        if os.path.exists(LAYOUT_PATH):
-            try:
-                with open(LAYOUT_PATH) as fh:
-                    raw = json.load(fh)
-            except (OSError, ValueError) as exc:
-                print("launchpad: layout unreadable (%s), regenerating" % exc,
-                      file=sys.stderr)
-        if not raw or not isinstance(raw.get("items"), list):
-            layout = cls.auto(apps)
-            layout.save()
-            return layout
-
-        seen = set()
-        for entry in raw["items"]:
-            if not isinstance(entry, dict):
-                continue
-            if entry.get("type") == "folder":
-                ids = [i for i in entry.get("apps", [])
-                       if i in known and i not in seen]
-                seen.update(ids)
-                if not ids:
-                    continue
-                layout.items.append({"type": "folder",
-                                     "id": entry.get("id") or layout.new_folder_id(),
-                                     "name": entry.get("name") or "Folder",
-                                     "apps": ids})
-            elif entry.get("type") == "app":
-                aid = entry.get("id")
-                if aid in known and aid not in seen:
-                    seen.add(aid)
-                    layout.items.append({"type": "app", "id": aid})
-
-        # newly installed apps join their category folder, or sit loose
-        for app in apps:
-            if app.get_id() in seen:
-                continue
-            name = categorise(app)
-            folder = next((i for i in layout.items
-                           if i["type"] == "folder" and i["name"] == name), None)
-            if folder:
-                folder["apps"].append(app.get_id())
-            else:
-                layout.items.append({"type": "app", "id": app.get_id()})
-        return layout
-
-    # -- mutation --------------------------------------------------------- #
-
-    def find_folder(self, fid):
-        return next((i for i in self.items
-                     if i["type"] == "folder" and i["id"] == fid), None)
-
-    def remove_app(self, app_id):
-        for entry in list(self.items):
-            if entry["type"] == "app" and entry["id"] == app_id:
-                self.items.remove(entry)
-            elif entry["type"] == "folder" and app_id in entry["apps"]:
-                entry["apps"].remove(app_id)
-                if len(entry["apps"]) == 1:
-                    # a folder down to one app collapses back to a loose icon
-                    idx = self.items.index(entry)
-                    self.items[idx] = {"type": "app", "id": entry["apps"][0]}
-                elif not entry["apps"]:
-                    self.items.remove(entry)
-
-    def make_folder(self, app_a, app_b, name):
-        """Drop app_a onto app_b: build a folder where app_b sat."""
-        target = next((i for i in self.items
-                       if i["type"] == "app" and i["id"] == app_b), None)
-        if target is None:
-            return None
-        index = self.items.index(target)
-        self.remove_app(app_a)
-        target = next((i for i in self.items
-                       if i["type"] == "app" and i["id"] == app_b), None)
-        if target is None:
-            return None
-        index = self.items.index(target)
-        folder = {"type": "folder", "id": self.new_folder_id(),
-                  "name": name, "apps": [app_b, app_a]}
-        self.items[index] = folder
-        return folder
-
-    def add_to_folder(self, app_id, fid):
-        folder = self.find_folder(fid)
-        if folder is None or app_id in folder["apps"]:
-            return None
-        self.remove_app(app_id)
-        folder = self.find_folder(fid)
-        if folder is None:
-            return None
-        folder["apps"].append(app_id)
-        return folder
-
-
-# --------------------------------------------------------------------------- #
-#  Plank integration
+#  Plank
 # --------------------------------------------------------------------------- #
 
 def plank_read_items():
@@ -436,576 +248,37 @@ def plank_pin(desktop_path):
 
 
 # --------------------------------------------------------------------------- #
-#  Tile (an app, or a folder)
+#  Window
 # --------------------------------------------------------------------------- #
 
-class Tile(Gtk.EventBox):
-    """One grid cell. Holds either an app or a folder."""
-
-    def __init__(self, window, app=None, folder=None):
-        super().__init__()
-        self.win = window
-        self.app = app
-        self.folder = folder
-        self.path = app.get_filename() if app else None
-        self.haystack = search_haystack(app) if app else ""
-        self._pixbuf = None
-
-        self.scale = 1.0
-        self.target_scale = 1.0
-        self.anim_from = 1.0
-        self.anim_start = 0
-        self.angle = 0.0
-        self.drop_hint = False
-        self._press_timer = None
-        self._press_xy = None
-        self._gesture = None
-
-        self.set_visible_window(False)
-        # The icon is a DrawingArea, which owns its own GdkWindow. With the
-        # event window below it, every crossing and motion event over the icon
-        # went to the DrawingArea and never reached this EventBox - hover only
-        # worked over the label, which has no window. Putting the event window
-        # above the children makes the whole tile responsive.
-        self.set_above_child(True)
-        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK
-                        | Gdk.EventMask.BUTTON_RELEASE_MASK
-                        | Gdk.EventMask.POINTER_MOTION_MASK
-                        | Gdk.EventMask.ENTER_NOTIFY_MASK
-                        | Gdk.EventMask.LEAVE_NOTIFY_MASK)
-
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        box.set_size_request(TILE_W, TILE_H)
-
-        self.icon_area = Canvas()
-        self.icon_area.set_size_request(TILE_W, ICON_PX + 20)
-        self.icon_area.connect("draw", self.on_icon_draw)
-        box.pack_start(self.icon_area, False, False, 0)
-
-        self.label = Gtk.Label(label=self.display_name())
-        self.label.set_line_wrap(True)
-        self.label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
-        self.label.set_lines(2)
-        self.label.set_ellipsize(Pango.EllipsizeMode.END)
-        self.label.set_justify(Gtk.Justification.CENTER)
-        self.label.set_max_width_chars(16)
-        self.label.get_style_context().add_class("app-label")
-        box.pack_start(self.label, False, False, 0)
-        self.add(box)
-
-        self.connect("enter-notify-event", self.on_enter)
-        self.connect("leave-notify-event", self.on_leave)
-        self.connect("button-press-event", self.on_press)
-        self.connect("button-release-event", self.on_release)
-        self.connect("motion-notify-event", self.on_motion)
-
-        # Drag source is started by hand in on_motion (see there).
-        self.targets = Gtk.TargetList.new([])
-        self.targets.add(Gdk.Atom.intern(DND_ITEM, False), Gtk.TargetFlags.SAME_APP, 0)
-        if app is not None:
-            self.targets.add(Gdk.Atom.intern("text/uri-list", False), 0, 1)
-            self.targets.add(Gdk.Atom.intern("application/x-desktop", False), 0, 2)
-            self.targets.add_text_targets(3)
-        self.connect("drag-begin", self.on_drag_begin)
-        self.connect("drag-data-get", self.on_drag_data_get)
-        self.connect("drag-end", self.on_drag_end)
-
-        # ...and a drop target, so dropping one app on another makes a folder.
-        self.drag_dest_set(Gtk.DestDefaults.DROP, [],
-                           Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
-        dest = Gtk.TargetList.new([])
-        dest.add(Gdk.Atom.intern(DND_ITEM, False), Gtk.TargetFlags.SAME_APP, 0)
-        self.drag_dest_set_target_list(dest)
-        self.connect("drag-motion", self.on_drag_motion)
-        self.connect("drag-leave", self.on_drag_leave)
-        self.connect("drag-data-received", self.on_drag_data_received)
-
-    # -- identity ---------------------------------------------------------- #
-
-    def key(self):
-        return self.app.get_id() if self.app else "folder:" + self.folder["id"]
-
-    def is_folder(self):
-        return self.folder is not None
-
-    def display_name(self):
-        if self.folder:
-            return self.folder["name"]
-        return self.app.get_display_name() or ""
-
-    def refresh_label(self):
-        self.label.set_text(self.display_name())
-
-    # -- drawing ------------------------------------------------------------ #
-
-    def pixbuf(self):
-        if self._pixbuf is None and self.app is not None:
-            self._pixbuf = load_icon(self.app, ICON_PX)
-        return self._pixbuf
-
-    def folder_previews(self):
-        infos = self.win.apps_by_id
-        out = []
-        for aid in self.folder["apps"][:9]:
-            app = infos.get(aid)
-            if app is not None:
-                out.append(load_icon(app, MINI_PX))
-        return out
-
-    def on_icon_draw(self, area, cr):
-        w = area.get_allocated_width()
-        h = area.get_allocated_height()
-        scale = self.scale * self.win.anim_scale
-
-        if self.drop_hint:
-            cr.save()
-            rounded_rect(cr, w / 2 - ICON_PX / 2 - 8, h / 2 - ICON_PX / 2 - 8,
-                         ICON_PX + 16, ICON_PX + 16, 22)
-            cr.set_source_rgba(1, 1, 1, 0.22)
-            cr.fill()
-            cr.restore()
-
-        cr.save()
-        cr.translate(w / 2.0, h / 2.0)
-        if self.angle:
-            cr.rotate(self.angle)
-        cr.scale(scale, scale)
-        if self.is_folder():
-            self.draw_folder(cr)
-        else:
-            pb = self.pixbuf()
-            cr.translate(-pb.get_width() / 2.0, -pb.get_height() / 2.0)
-            Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
-            cr.paint()
-        cr.restore()
-
-        if self.win.jiggling and not self.is_folder():
-            self.draw_badge(cr, w, h)
-        return False
-
-    def draw_folder(self, cr):
-        size = ICON_PX
-        cr.translate(-size / 2.0, -size / 2.0)
-        rounded_rect(cr, 0, 0, size, size, 21)
-        cr.set_source_rgba(1, 1, 1, 0.17)
-        cr.fill_preserve()
-        cr.set_source_rgba(1, 1, 1, 0.13)
-        cr.set_line_width(1)
-        cr.stroke()
-
-        pad, gap = 10, 5
-        cell = (size - 2 * pad - 2 * gap) / 3.0
-        for i, pb in enumerate(self.folder_previews()):
-            row, col = divmod(i, 3)
-            x = pad + col * (cell + gap)
-            y = pad + row * (cell + gap)
-            factor = cell / pb.get_width()
-            cr.save()
-            cr.translate(x, y)
-            cr.scale(factor, factor)
-            Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
-            cr.paint()
-            cr.restore()
-
-    def draw_badge(self, cr, w, h):
-        r = 11.0
-        cx = w / 2.0 - ICON_PX / 2.0 + 2
-        cy = h / 2.0 - ICON_PX / 2.0 + 2
-        cr.save()
-        cr.arc(cx, cy, r, 0, 2 * math.pi)
-        cr.set_source_rgba(0.16, 0.16, 0.18, 0.97)
-        cr.fill_preserve()
-        cr.set_source_rgba(1, 1, 1, 0.85)
-        cr.set_line_width(1.4)
-        cr.stroke()
-        cr.set_source_rgba(1, 1, 1, 0.95)
-        cr.set_line_width(2.0)
-        cr.set_line_cap(1)
-        d = 4.0
-        cr.move_to(cx - d, cy - d); cr.line_to(cx + d, cy + d)
-        cr.move_to(cx + d, cy - d); cr.line_to(cx - d, cy + d)
-        cr.stroke()
-        cr.restore()
-
-    def badge_hit(self, x, y):
-        alloc = self.icon_area.get_allocation()
-        own = self.get_allocation()
-        cx = (alloc.x - own.x) + alloc.width / 2.0 - ICON_PX / 2.0 + 2
-        cy = (alloc.y - own.y) + alloc.height / 2.0 - ICON_PX / 2.0 + 2
-        return (x - cx) ** 2 + (y - cy) ** 2 <= 14 ** 2
-
-    def redraw(self):
-        self.icon_area.queue_draw()
-
-    # -- hover -------------------------------------------------------------- #
-
-    def set_scale(self, target):
-        if abs(target - self.target_scale) < 0.001:
-            return
-        self.anim_from = self.scale
-        self.target_scale = target
-        self.anim_start = GLib.get_monotonic_time()
-        self.win.start_scale_anim()
-
-    def on_enter(self, widget, event):
-        if event.detail == Gdk.NotifyType.INFERIOR:
-            return False
-        if not self.win.jiggling:
-            self.set_scale(HOVER_SCALE)
-        return False
-
-    def on_leave(self, widget, event):
-        if event.detail == Gdk.NotifyType.INFERIOR:
-            return False
-        self.set_scale(1.0)
-        return False
-
-    # -- pointer ------------------------------------------------------------ #
-
-    def on_press(self, widget, event):
-        if event.type != Gdk.EventType.BUTTON_PRESS:
-            return True
-        if event.button == 3:
-            self.popup_menu(event)
-            return True
-        if event.button != 1:
-            return True
-
-        if self.win.jiggling:
-            if not self.is_folder() and self.badge_hit(event.x, event.y):
-                self.win.remove_app(self)
-                return True
-            self.win.stop_jiggle()
-            return True
-
-        self._press_xy = (event.x_root, event.y_root)
-        self._gesture = None
-        self.win.pointer_press(event.x_root, event.y_root)
-        self.set_scale(PRESS_SCALE)
-        self._cancel_press_timer()
-        self._press_timer = GLib.timeout_add(600, self._long_press)
-        return True
-
-    def _long_press(self):
-        self._press_timer = None
-        self.set_scale(1.0)
-        if not self.is_folder():
-            self.win.start_jiggle()
-        return False
-
-    def _cancel_press_timer(self):
-        if self._press_timer is not None:
-            GLib.source_remove(self._press_timer)
-            self._press_timer = None
-
-    def on_motion(self, widget, event):
-        if self._press_xy is None or self._gesture is not None:
-            return False
-        dx = event.x_root - self._press_xy[0]
-        dy = event.y_root - self._press_xy[1]
-        if max(abs(dx), abs(dy)) < DRAG_THRESHOLD:
-            return False
-        self._cancel_press_timer()
-        self.set_scale(1.0)
-        # Dragging an icon picks it up (macOS behaviour): drop it on another
-        # icon to make a folder, or on the dock to pin it. Page flipping is
-        # done by dragging the empty background, scrolling, or the dots.
-        self._gesture = "dnd"
-        self.win.dragging = True
-        self.drag_begin_with_coordinates(
-            self.targets, Gdk.DragAction.COPY | Gdk.DragAction.MOVE,
-            1, event, -1, -1)
-        return False
-
-    def on_release(self, widget, event):
-        if event.button != 1:
-            return True
-        had_timer = self._press_timer is not None
-        self._cancel_press_timer()
-        gesture = self._gesture
-        self._press_xy = None
-        self._gesture = None
-        if gesture == "dnd":
-            return True
-        self.set_scale(HOVER_SCALE)
-        if had_timer and not self.win.jiggling and not self.win.dragging:
-            self.activate_tile()
-        return True
-
-    def activate_tile(self):
-        if self.is_folder():
-            self.win.open_folder(self)
-        else:
-            self.win.launch(self.app)
-
-    # -- drag source --------------------------------------------------------- #
-
-    def on_drag_begin(self, widget, ctx):
-        self.win.dragging = True
-        self._cancel_press_timer()
-        if self.is_folder():
-            Gtk.drag_set_icon_name(ctx, "folder", ICON_PX // 2, ICON_PX // 2)
-        else:
-            Gtk.drag_set_icon_pixbuf(ctx, self.pixbuf(),
-                                     ICON_PX // 2, ICON_PX // 2)
-
-    def on_drag_data_get(self, widget, ctx, selection, info, time):
-        target = selection.get_target().name()
-        if target == DND_ITEM:
-            selection.set(selection.get_target(), 8, self.key().encode())
-            return
-        if not self.path:
-            return
-        uri = Gio.File.new_for_path(self.path).get_uri()
-        if target == "text/uri-list":
-            selection.set_uris([uri])
-        elif target in ("UTF8_STRING", "COMPOUND_TEXT", "TEXT", "STRING",
-                        "text/plain", "text/plain;charset=utf-8"):
-            selection.set_text(uri, -1)
-        else:
-            selection.set(selection.get_target(), 8, uri.encode())
-
-    def on_drag_end(self, widget, ctx):
-        self.win.dragging = False
-        self._gesture = None
-        self._press_xy = None
-        self.set_scale(1.0)
-
-    # -- drop target ---------------------------------------------------------- #
-
-    def on_drag_motion(self, widget, ctx, x, y, time):
-        source = Gtk.drag_get_source_widget(ctx)
-        ok = source is not None and source is not self and not source.is_folder()
-        if ok and not self.drop_hint:
-            self.drop_hint = True
-            self.redraw()
-        Gdk.drag_status(ctx, Gdk.DragAction.MOVE if ok else 0, time)
-        return True
-
-    def on_drag_leave(self, widget, ctx, time):
-        if self.drop_hint:
-            self.drop_hint = False
-            self.redraw()
-
-    def on_drag_data_received(self, widget, ctx, x, y, selection, info, time):
-        self.drop_hint = False
-        self.redraw()
-        try:
-            key = selection.get_data().decode()
-        except Exception:
-            Gtk.drag_finish(ctx, False, False, time)
-            return
-        handled = self.win.handle_item_drop(key, self)
-        Gtk.drag_finish(ctx, handled, False, time)
-
-    # -- context menu ---------------------------------------------------------- #
-
-    def popup_menu(self, event):
-        menu = Gtk.Menu()
-        self.win.menu_open = True
-
-        if self.is_folder():
-            item = Gtk.MenuItem(label="Open Folder")
-            item.connect("activate", lambda *_: self.win.open_folder(self))
-            menu.append(item)
-            item = Gtk.MenuItem(label="Rename Folder…")
-            item.connect("activate", lambda *_: self.win.rename_folder(self))
-            menu.append(item)
-            item = Gtk.MenuItem(label="Break Up Folder")
-            item.connect("activate", lambda *_: self.win.dissolve_folder(self))
-            menu.append(item)
-        else:
-            actions = []
-            try:
-                actions = list(self.app.list_actions() or [])
-            except AttributeError:
-                actions = []
-            for action in actions:
-                try:
-                    name = self.app.get_action_name(action)
-                except Exception:
-                    name = action
-                item = Gtk.MenuItem(label=name or action)
-                item.connect("activate", self.on_action, action)
-                menu.append(item)
-            if actions:
-                menu.append(Gtk.SeparatorMenuItem())
-            for label, cb in (("Add to Plank Dock", self.on_pin),
-                              ("Add to Desktop", self.on_desktop),
-                              ("Show in Files", self.on_show_files),
-                              ("Copy Command", self.on_copy_cmd)):
-                item = Gtk.MenuItem(label=label)
-                item.connect("activate", cb)
-                item.set_sensitive(bool(self.path))
-                menu.append(item)
-            menu.append(Gtk.SeparatorMenuItem())
-            item = Gtk.MenuItem(label="Remove…")
-            item.connect("activate", lambda *_: self.win.remove_app(self))
-            menu.append(item)
-
-        menu.connect("deactivate", lambda *_: GLib.timeout_add(
-            120, self._clear_menu_flag))
-        menu.show_all()
-        menu.popup_at_pointer(event)
-
-    def _clear_menu_flag(self):
-        self.win.menu_open = False
-        return False
-
-    def on_action(self, item, action):
-        try:
-            self.app.launch_action(action, self.win.launch_context())
-        except Exception as exc:
-            self.win.error("Could not run that action.", str(exc))
-            return
-        self.win.hide_launcher()
-
-    def on_pin(self, *_):
-        ok, err = plank_pin(self.path)
-        if ok:
-            self.win.toast("Added “%s” to the dock." % self.display_name())
-        else:
-            self.win.error("Could not add to the dock.", err)
-
-    def on_desktop(self, *_):
-        dest_dir = GLib.get_user_special_dir(
-            GLib.UserDirectory.DIRECTORY_DESKTOP) or os.path.expanduser("~/Desktop")
-        try:
-            os.makedirs(dest_dir, exist_ok=True)
-            dest = os.path.join(dest_dir, os.path.basename(self.path))
-            Gio.File.new_for_path(self.path).copy(
-                Gio.File.new_for_path(dest), Gio.FileCopyFlags.OVERWRITE,
-                None, None, None)
-            os.chmod(dest, 0o755)
-            subprocess.call(["gio", "set", dest, "metadata::trusted", "true"],
-                            stderr=subprocess.DEVNULL)
-        except Exception as exc:
-            self.win.error("Could not copy to the desktop.", str(exc))
-            return
-        self.win.toast("Added “%s” to the desktop." % self.display_name())
-
-    def on_show_files(self, *_):
-        run_bg(["nemo", "--no-desktop", "--select", self.path])
-        self.win.hide_launcher()
-
-    def on_copy_cmd(self, *_):
-        cmd = self.app.get_commandline() or self.app.get_executable() or ""
-        clip = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-        clip.set_text(cmd, -1)
-        clip.store()
-        self.win.toast("Copied: %s" % cmd)
-
-
-# --------------------------------------------------------------------------- #
-#  Page dots
-# --------------------------------------------------------------------------- #
-
-class PageDots(Gtk.EventBox):
-    def __init__(self, window):
-        super().__init__()
-        self.win = window
-        self.count = 1
-        self.current = 0
-        self.set_visible_window(False)
-        # Same trap as the tiles: the DrawingArea owns a window, so without
-        # this the clicks never reached the EventBox and the dots were dead.
-        self.set_above_child(True)
-        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK
-                        | Gdk.EventMask.BUTTON_RELEASE_MASK)
-        self.area = Canvas()
-        self.area.set_size_request(-1, DOTS_AREA)
-        self.area.connect("draw", self.on_draw)
-        self.add(self.area)
-        self.connect("button-press-event", self.on_click)
-
-    def configure(self, count, current):
-        self.count = max(1, count)
-        self.current = current
-        self.area.queue_draw()
-
-    def _positions(self, width):
-        gap = 20.0
-        start = width / 2.0 - (self.count - 1) * gap / 2.0
-        return [start + i * gap for i in range(self.count)]
-
-    def on_draw(self, area, cr):
-        if self.count <= 1:
-            return False
-        w = area.get_allocated_width()
-        h = area.get_allocated_height()
-        for i, x in enumerate(self._positions(w)):
-            if i == self.current:
-                cr.set_source_rgba(1, 1, 1, 0.95); r = 4.4
-            else:
-                cr.set_source_rgba(1, 1, 1, 0.34); r = 4.0
-            cr.arc(x, h / 2.0, r, 0, 2 * math.pi)
-            cr.fill()
-        return False
-
-    def on_click(self, widget, event):
-        if self.count <= 1:
-            return True
-        w = self.area.get_allocated_width()
-        best, best_dx = None, 1e9
-        for i, x in enumerate(self._positions(w)):
-            dx = abs(event.x - x)
-            if dx < best_dx:
-                best, best_dx = i, dx
-        # generous hit area - the dots themselves are only ~9px across
-        if best is not None and best_dx <= 14:
-            self.win.goto_page(best)
-        return True
-
-
-# --------------------------------------------------------------------------- #
-#  Main window
-# --------------------------------------------------------------------------- #
-
-class LaunchpadWindow(Gtk.Window):
+class AppsWindow(Gtk.Window):
     def __init__(self, app):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.gtk_app = app
         self.backdrop = None
-        self.anim_scale = 1.0
-        self._anim_tick = None
-        self._scale_tick = None
-        self.jiggling = False
-        self._jiggle_timer = None
-        self._jiggle_phase = 0
+        self.category = None
+        self.query = ""
+        self.view = load_view()
+        self.apps = []
         self._hidden_at = 0.0
-        self.dragging = False
-        self.menu_open = False
-        self.tiles = []
-        self.pages = []
-        self.page = 0
-        self._bg_press = None
-        self._toast_timer = None
-        self._scroll_accum = 0.0
-        self._last_page_change = 0
-        self.open_folder_tile = None
-
-        self.apps_by_id = {}
-        self.app_tiles = {}
-        self.folder_tiles = {}
-        self.layout = None
+        self._anim_tick = None
+        self._menu_open = False
+        self._syncing_pills = False
 
         self.set_app_paintable(True)
         self.set_decorated(False)
         self.set_resizable(False)
+        self.set_skip_taskbar_hint(True)
         self.set_skip_pager_hint(True)
-        self.set_type_hint(Gdk.WindowTypeHint.NORMAL)
+        self.set_keep_above(True)
         self.set_title("Launchpad")
+        self.get_style_context().add_class("lp-window")
         self.stick()
 
         visual = self.get_screen().get_rgba_visual()
         if visual is not None:
             self.set_visual(visual)
 
-        # Scroll is handled at the toplevel so it works no matter which child
-        # the pointer happens to be over.
-        self.add_events(Gdk.EventMask.SCROLL_MASK
-                        | Gdk.EventMask.SMOOTH_SCROLL_MASK)
-        self.connect("scroll-event", self.on_scroll)
         self.connect("draw", self.on_draw)
         self.connect("key-press-event", self.on_key)
         self.connect("delete-event", self.on_delete)
@@ -1020,667 +293,388 @@ class LaunchpadWindow(Gtk.Window):
     # -- construction -------------------------------------------------------- #
 
     def build_ui(self):
-        self.bg_events = Gtk.EventBox()
-        self.bg_events.set_visible_window(False)
-        self.bg_events.add_events(Gdk.EventMask.BUTTON_PRESS_MASK
-                                  | Gdk.EventMask.BUTTON_RELEASE_MASK
-                                  | Gdk.EventMask.POINTER_MOTION_MASK
-                                  | Gdk.EventMask.SCROLL_MASK
-                                  | Gdk.EventMask.SMOOTH_SCROLL_MASK)
-        self.bg_events.connect("button-press-event", self.on_bg_press)
-        self.bg_events.connect("button-release-event", self.on_bg_release)
-        self.bg_events.connect("scroll-event", self.on_scroll)
-        self.add(self.bg_events)
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(root)
 
-        self.overlay = Gtk.Overlay()
-        self.bg_events.add(self.overlay)
+        # Search row: apps glyph, big field, ⋯ ----------------------------------
+        top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        top.get_style_context().add_class("lp-top")
+        glyph = Gtk.Image.new_from_icon_name("view-app-grid-symbolic", Gtk.IconSize.LARGE_TOOLBAR)
+        glyph.set_pixel_size(22)
+        glyph.get_style_context().add_class("lp-glyph")
+        top.pack_start(glyph, False, False, 0)
 
-        self.content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.overlay.add(self.content)
-
-        search_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        search_row.set_size_request(-1, TOP_AREA)
-        self.entry = Gtk.SearchEntry()
-        self.entry.set_placeholder_text("Search")
-        self.entry.set_width_chars(24)
-        self.entry.set_max_width_chars(24)
-        self.entry.set_halign(Gtk.Align.CENTER)
-        self.entry.set_valign(Gtk.Align.CENTER)
+        # GTK hides an entry's placeholder while it has focus; Tahoe keeps
+        # "Applications" (or the chosen category) showing beside the caret,
+        # so the hint is a label overlaid behind the entry instead.
+        self.entry = Gtk.Entry()
+        self.entry.set_has_frame(False)
         self.entry.get_style_context().add_class("lp-search")
-        self.entry.connect("search-changed", lambda *_: self.apply_filter())
+        self.entry.connect("changed", self.on_search)
         self.entry.connect("activate", self.on_entry_activate)
-        search_row.set_center_widget(self.entry)
-        self.content.pack_start(search_row, False, False, 0)
+        self.entry.connect("key-press-event", self.on_entry_key)
+        self.hint = Gtk.Label(label="Applications", xalign=0.0)
+        self.hint.get_style_context().add_class("lp-hint")
+        self.hint.set_halign(Gtk.Align.START)
+        self.hint.set_valign(Gtk.Align.CENTER)
+        overlay = Gtk.Overlay()
+        overlay.add(self.entry)
+        overlay.add_overlay(self.hint)
+        overlay.set_overlay_pass_through(self.hint, True)
+        top.pack_start(overlay, True, True, 0)
 
-        self.stack = Gtk.Stack()
-        self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
-        self.stack.set_transition_duration(210)
-        self.stack.set_homogeneous(True)
-        self.content.pack_start(self.stack, True, True, 0)
+        self.more = Gtk.MenuButton()
+        self.more.set_relief(Gtk.ReliefStyle.NONE)
+        self.more.get_style_context().add_class("lp-more")
+        more_img = Gtk.Image.new_from_icon_name("view-more-symbolic", Gtk.IconSize.MENU)
+        more_img.set_pixel_size(18)
+        self.more.add(more_img)
+        self.more.set_popup(self.build_more_menu())
+        top.pack_end(self.more, False, False, 0)
+        root.pack_start(top, False, False, 0)
 
-        self.dots = PageDots(self)
-        self.content.pack_start(self.dots, False, False, 0)
+        # Category pills ---------------------------------------------------------
+        pill_scroller = Gtk.ScrolledWindow()
+        pill_scroller.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER)
+        pill_scroller.get_style_context().add_class("lp-pill-scroller")
+        self.pill_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.pill_box.get_style_context().add_class("lp-pills")
+        self.pills = {}
+        for cid, label in CATEGORIES:
+            pill = Gtk.ToggleButton(label=label)
+            pill.set_relief(Gtk.ReliefStyle.NONE)
+            pill.set_can_focus(False)
+            pill.get_style_context().add_class("lp-pill")
+            pill.cid = cid
+            pill.connect("toggled", self.on_pill)
+            self.pill_box.pack_start(pill, False, False, 0)
+            self.pills[cid] = pill
+        pill_scroller.add(self.pill_box)
+        # side-scroll the pill row with the wheel
+        pill_scroller.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+        pill_scroller.connect("scroll-event", self.on_pill_scroll)
+        root.pack_start(pill_scroller, False, False, 0)
 
-        self.toast_label = Gtk.Label()
-        self.toast_label.get_style_context().add_class("lp-toast")
-        self.toast_label.set_no_show_all(True)
-        self.content.pack_start(self.toast_label, False, False, 0)
+        # Grid ---------------------------------------------------------------------
+        self.scroller = Gtk.ScrolledWindow()
+        self.scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scroller.get_style_context().add_class("lp-scroller")
+        root.pack_start(self.scroller, True, True, 0)
 
-        self.dock_spacer = Gtk.Box()
-        self.content.pack_start(self.dock_spacer, False, False, 0)
+        self.grid = Gtk.FlowBox()
+        self.grid.set_valign(Gtk.Align.START)
+        self.grid.set_homogeneous(True)
+        self.grid.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.grid.set_activate_on_single_click(True)
+        self.grid.set_column_spacing(2)
+        self.grid.set_row_spacing(2)
+        self.grid.get_style_context().add_class("lp-grid")
+        self.grid.set_filter_func(self.filter_child)
+        self.grid.set_sort_func(self.sort_children)
+        self.grid.connect("child-activated", self.on_child_activated)
+        self.grid.connect("button-press-event", self.on_grid_press)
+        self.scroller.add(self.grid)
 
-        self.build_folder_panel()
+        self.empty = Gtk.Label(label="No Results")
+        self.empty.get_style_context().add_class("lp-empty")
+        self.empty.set_no_show_all(True)
+        root.pack_start(self.empty, False, False, 0)
 
-    def build_folder_panel(self):
-        # A full-size click catcher sitting above the (dimmed) grid. It is
-        # needed because dimming the background with set_sensitive(False) makes
-        # GTK treat clicks on it as already handled - gtk_propagate_event does
-        #     handled = !gtk_widget_is_sensitive (widget) || gtk_widget_event (...)
-        # and stops - so clicks never reached the background handler and the
-        # folder could not be dismissed by clicking outside it.
-        self.folder_shade = Gtk.EventBox()
-        self.folder_shade.set_visible_window(False)
-        self.folder_shade.set_above_child(False)   # panel's own children win
-        self.folder_shade.set_no_show_all(True)
-        self.folder_shade.set_halign(Gtk.Align.FILL)
-        self.folder_shade.set_valign(Gtk.Align.FILL)
-        self.folder_shade.add_events(Gdk.EventMask.BUTTON_PRESS_MASK
-                                     | Gdk.EventMask.BUTTON_RELEASE_MASK)
-        self.folder_shade.connect("button-release-event", self.on_shade_click)
-        self.folder_shade.connect("draw", self.on_shade_draw)
+        self.apply_view()
 
-        self.folder_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-                                    spacing=14)
-        self.folder_panel.get_style_context().add_class("lp-folder")
-        self.folder_panel.set_halign(Gtk.Align.CENTER)
-        self.folder_panel.set_valign(Gtk.Align.CENTER)
+    def build_more_menu(self):
+        menu = Gtk.Menu()
+        menu.get_style_context().add_class("lp-menu")
+        group = None
+        self.view_items = {}
+        for vid, label in (("grid", "Grid"), ("list", "List")):
+            mi = Gtk.RadioMenuItem.new_with_label_from_widget(group, label)
+            group = group or mi
+            mi.vid = vid
+            self.view_items[vid] = mi
+            menu.append(mi)
+        self.view_items[self.view].set_active(True)
+        for mi in self.view_items.values():
+            mi.connect("toggled", self.on_view_toggled)
+        menu.show_all()
+        menu.connect("deactivate", lambda *_: GLib.timeout_add(150, self._clear_menu_flag))
+        menu.connect("show", lambda *_: setattr(self, "_menu_open", True))
+        return menu
 
-        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self.folder_name = Gtk.Entry()
-        self.folder_name.set_halign(Gtk.Align.CENTER)
-        self.folder_name.set_alignment(0.5)
-        self.folder_name.set_width_chars(18)
-        self.folder_name.set_has_frame(False)
-        self.folder_name.get_style_context().add_class("lp-folder-name")
-        self.folder_name.connect("activate", self.on_folder_rename)
-        self.folder_name.connect("focus-out-event", self.on_folder_rename)
-        self.folder_name.set_hexpand(True)
-        header.pack_start(self.folder_name, True, True, 0)
+    def tile(self, app):
+        gicon = app.get_icon()
+        if gicon is not None:
+            img = Gtk.Image.new_from_gicon(gicon, Gtk.IconSize.DIALOG)
+        else:
+            img = Gtk.Image.new_from_icon_name("application-x-executable", Gtk.IconSize.DIALOG)
+        label = Gtk.Label(label=app.get_display_name() or app.get_name() or "")
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        label.get_style_context().add_class("lp-app-label")
 
-        close = Gtk.Button(label="\u2715")
-        close.set_relief(Gtk.ReliefStyle.NONE)
-        close.set_valign(Gtk.Align.CENTER)
-        close.get_style_context().add_class("lp-folder-close")
-        close.set_tooltip_text("Close folder  (Esc)")
-        close.connect("clicked", lambda *_: self.close_folder())
-        header.pack_end(close, False, False, 0)
-        self.folder_close_btn = close
+        child = Gtk.FlowBoxChild()
+        child.set_can_focus(True)
+        child.img = img
+        child.label = label
+        child.app = app
+        child.app_id = app.get_id()
+        child.category = categorise(app)
+        child.haystack = search_haystack(app)
+        child.sort_key = (app.get_display_name() or "").lower()
+        child.box = None
+        self.layout_tile(child)
+        return child
 
-        self.folder_panel.pack_start(header, False, False, 0)
+    def layout_tile(self, child):
+        """(Re)pack a tile's image+label for the current view."""
+        if child.box is not None:
+            child.box.remove(child.img)
+            child.box.remove(child.label)
+            child.remove(child.box)
+        if self.view == "list":
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            box.get_style_context().add_class("lp-row")
+            child.img.set_pixel_size(LIST_ICON_PX)
+            child.label.set_xalign(0.0)
+            child.label.set_justify(Gtk.Justification.LEFT)
+            child.label.set_line_wrap(False)
+            child.label.set_max_width_chars(-1)
+            box.pack_start(child.img, False, False, 0)
+            box.pack_start(child.label, True, True, 0)
+            child.set_size_request(-1, -1)
+        else:
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            box.get_style_context().add_class("lp-tile")
+            child.img.set_pixel_size(ICON_PX)
+            child.label.set_xalign(0.5)
+            child.label.set_justify(Gtk.Justification.CENTER)
+            child.label.set_line_wrap(True)
+            child.label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            child.label.set_lines(2)
+            child.label.set_max_width_chars(13)
+            box.pack_start(child.img, False, False, 0)
+            box.pack_start(child.label, False, False, 0)
+            child.set_size_request(TILE_W, -1)
+        child.box = box
+        child.add(box)
+        box.show_all()
 
-        self.folder_grid = Gtk.Grid()
-        self.folder_grid.set_column_spacing(COL_SPACING)
-        self.folder_grid.set_row_spacing(ROW_SPACING)
-        self.folder_grid.set_halign(Gtk.Align.CENTER)
+    def apply_view(self):
+        ctx = self.grid.get_style_context()
+        if self.view == "list":
+            self.grid.set_min_children_per_line(1)
+            self.grid.set_max_children_per_line(1)
+            ctx.add_class("lp-list")
+        else:
+            self.grid.set_min_children_per_line(3)
+            self.grid.set_max_children_per_line(12)
+            ctx.remove_class("lp-list")
+        for child in self.grid.get_children():
+            self.layout_tile(child)
 
-        self.folder_scroll = Gtk.ScrolledWindow()
-        self.folder_scroll.set_policy(Gtk.PolicyType.NEVER,
-                                      Gtk.PolicyType.AUTOMATIC)
-        self.folder_scroll.set_propagate_natural_width(True)
-        self.folder_scroll.set_propagate_natural_height(True)
-        self.folder_scroll.add(self.folder_grid)
-        self.folder_panel.pack_start(self.folder_scroll, True, True, 0)
-
-        self.folder_shade.add(self.folder_panel)
-        self.overlay.add_overlay(self.folder_shade)
-
-    # -- model --------------------------------------------------------------- #
+    # -- data ---------------------------------------------------------------- #
 
     def reload_apps(self):
-        apps = all_apps()
-        self.apps_by_id = {a.get_id(): a for a in apps}
-        self.layout = Layout.load(apps)
-        self.rebuild_tiles()
-        return False
+        for child in self.grid.get_children():
+            self.grid.remove(child)
+        self.apps = all_apps()
+        present = set()
+        for app in self.apps:
+            self.grid.add(self.tile(app))
+            present.add(categorise(app))
+        for cid, pill in self.pills.items():
+            pill.set_visible(cid in present)
+        self.grid.show_all()
+        self.refilter()
 
-    def rebuild_tiles(self):
-        """Recreate top-level tiles from the layout, reusing app tiles."""
-        for tile in list(self.app_tiles.values()) + list(self.folder_tiles.values()):
-            parent = tile.get_parent()
-            if parent is not None:
-                parent.remove(tile)
+    # -- filtering / sorting -------------------------------------------------- #
 
-        wanted_folders = set()
-        tiles = []
-        for entry in self.layout.items:
-            if entry["type"] == "folder":
-                fid = entry["id"]
-                wanted_folders.add(fid)
-                tile = self.folder_tiles.get(fid)
-                if tile is None:
-                    tile = Tile(self, folder=entry)
-                    self.folder_tiles[fid] = tile
-                else:
-                    tile.folder = entry
-                    tile.refresh_label()
-                    tile.redraw()
-                tiles.append(tile)
-            else:
-                app = self.apps_by_id.get(entry["id"])
-                if app is None:
-                    continue
-                tiles.append(self.app_tile(app))
-        for fid in list(self.folder_tiles):
-            if fid not in wanted_folders:
-                tile = self.folder_tiles.pop(fid)
-                tile.destroy()
-        self.tiles = tiles
-        self.rebuild_pages(tiles)
+    def filter_child(self, child):
+        if self.category and child.category != self.category:
+            return False
+        if self.query:
+            return self.query in child.haystack
+        return True
 
-    def app_tile(self, app):
-        tile = self.app_tiles.get(app.get_id())
-        if tile is None:
-            tile = Tile(self, app=app)
-            self.app_tiles[app.get_id()] = tile
-        return tile
+    def sort_children(self, a, b):
+        return (a.sort_key > b.sort_key) - (a.sort_key < b.sort_key)
 
-    def all_tiles(self):
-        return list(self.app_tiles.values()) + list(self.folder_tiles.values())
+    def refilter(self):
+        self.grid.invalidate_filter()
+        self.grid.invalidate_sort()
+        shown = self.visible_children()
+        self.empty.set_visible(not shown)
+        self.scroller.set_visible(bool(shown))
+        adj = self.scroller.get_vadjustment()
+        if adj is not None:
+            adj.set_value(0)
 
-    # -- grid ----------------------------------------------------------------- #
+    def visible_children(self):
+        return [c for c in self.grid.get_children() if self.filter_child(c)]
 
-    def grid_shape(self):
-        geo = self.current_geometry()
-        usable_w = geo.width - 2 * SIDE_MARGIN
-        cols = max(4, min(9, int((usable_w + COL_SPACING) // (TILE_W + COL_SPACING))))
-        reserved = TOP_AREA + DOTS_AREA + self.dock_gap() + 16
-        usable_h = geo.height - reserved
-        rows = max(3, int((usable_h + ROW_SPACING) // (TILE_H + ROW_SPACING)))
-        return cols, rows
+    # -- callbacks ------------------------------------------------------------- #
 
-    def rebuild_pages(self, tiles):
-        # Detach everything first: removing a grid drops the last reference to
-        # it, which would destroy the tiles still parented to it.
-        for tile in self.all_tiles():
-            parent = tile.get_parent()
-            if parent is not None:
-                parent.remove(tile)
-        for child in self.stack.get_children():
-            self.stack.remove(child)
-        self.pages = []
-
-        cols, rows = self.grid_shape()
-        per_page = max(1, cols * rows)
-
-        if not tiles:
-            empty = Gtk.Label(label="No applications found")
-            empty.get_style_context().add_class("app-label")
-            self.stack.add_named(empty, "page0")
-            self.pages = [empty]
-            self.page = 0
-            self.dots.configure(1, 0)
-            self.stack.show_all()
+    def on_pill(self, pill):
+        if self._syncing_pills:
             return
-
-        for index in range(0, len(tiles), per_page):
-            grid = Gtk.Grid()
-            grid.set_column_spacing(COL_SPACING)
-            grid.set_row_spacing(ROW_SPACING)
-            grid.set_halign(Gtk.Align.CENTER)
-            grid.set_valign(Gtk.Align.CENTER)
-            for position, tile in enumerate(tiles[index:index + per_page]):
-                grid.attach(tile, position % cols, position // cols, 1, 1)
-            self.stack.add_named(grid, "page%d" % len(self.pages))
-            self.pages.append(grid)
-
-        self.page = min(self.page, len(self.pages) - 1)
-        self.stack.set_visible_child_name("page%d" % self.page)
-        self.dots.configure(len(self.pages), self.page)
-        self.stack.show_all()
-
-    def apply_filter(self):
-        query = self.entry.get_text().strip().lower()
-        if not query:
-            self.filtered = self.tiles
-            visible = self.tiles
+        self._syncing_pills = True
+        if pill.get_active():
+            for other in self.pills.values():
+                if other is not pill and other.get_active():
+                    other.set_active(False)
+            self.category = pill.cid
+            self.hint.set_text(dict(CATEGORIES)[pill.cid])
         else:
-            terms = query.split()
-            # search reaches inside folders, like macOS
-            visible = [self.app_tile(a) for a in
-                       sorted(self.apps_by_id.values(),
-                              key=lambda a: (a.get_display_name() or "").lower())
-                       if all(t in search_haystack(a) for t in terms)]
-            self.filtered = visible
-        self.close_folder()
-        self.page = 0
-        transition = self.stack.get_transition_type()
-        self.stack.set_transition_type(Gtk.StackTransitionType.NONE)
-        self.rebuild_pages(visible)
-        self.stack.set_transition_type(transition)
+            self.category = None
+            self.hint.set_text("Applications")
+        self._syncing_pills = False
+        self.entry.grab_focus()
+        self.refilter()
+
+    def clear_category(self):
+        for pill in self.pills.values():
+            if pill.get_active():
+                pill.set_active(False)   # on_pill resets category + placeholder
+
+    def on_pill_scroll(self, widget, event):
+        adj = widget.get_hadjustment()
+        delta = 0.0
+        if event.direction == Gdk.ScrollDirection.SMOOTH:
+            ok, dx, dy = event.get_scroll_deltas()
+            delta = (dx or dy) * 40
+        elif event.direction in (Gdk.ScrollDirection.UP, Gdk.ScrollDirection.LEFT):
+            delta = -40
+        else:
+            delta = 40
+        adj.set_value(adj.get_value() + delta)
+        return True
+
+    def on_search(self, entry):
+        self.query = entry.get_text().strip().lower()
+        self.hint.set_visible(not entry.get_text())
+        self.refilter()
 
     def on_entry_activate(self, *_):
-        tiles = getattr(self, "filtered", None) or self.tiles
-        if tiles:
-            tiles[0].activate_tile()
+        shown = self.visible_children()
+        if shown:
+            self.launch(shown[0].app)
 
-    # -- folders ---------------------------------------------------------------- #
-
-    def open_folder(self, tile):
-        if not tile.is_folder():
-            return
-        self.open_folder_tile = tile
-        for child in self.folder_grid.get_children():
-            self.folder_grid.remove(child)
-        cols = min(FOLDER_COLS, max(1, len(tile.folder["apps"])))
-        for i, aid in enumerate(tile.folder["apps"]):
-            app = self.apps_by_id.get(aid)
-            if app is None:
-                continue
-            child = self.app_tile(app)
-            parent = child.get_parent()
-            if parent is not None:
-                parent.remove(child)
-            self.folder_grid.attach(child, i % cols, i // cols, 1, 1)
-        # Size the viewport to a whole number of rows, so a partly visible
-        # row never gets its labels sliced off at the panel edge.
-        geo = self.current_geometry()
-        avail = geo.height - self.dock_gap() - FOLDER_CHROME
-        row_h = TILE_H + ROW_SPACING
-        rows = max(1, int(avail // row_h))
-        needed = -(-len(tile.folder["apps"]) // cols)
-        rows = min(rows, needed)
-        self.folder_scroll.set_max_content_height(
-            rows * TILE_H + (rows - 1) * ROW_SPACING)
-
-        self.folder_name.set_text(tile.folder["name"])
-        # show_all() is a no-op on a widget with no_show_all set, so the
-        # children have to be shown explicitly.
-        self.folder_panel.show_all()
-        self.folder_shade.show()
-        self.content.set_sensitive(False)
-
-    def close_folder(self):
-        if self.open_folder_tile is None:
-            return
-        for child in self.folder_grid.get_children():
-            self.folder_grid.remove(child)
-        self.folder_shade.hide()
-        self.folder_panel.hide()
-        self.content.set_sensitive(True)
-        self.open_folder_tile = None
-        # tiles pulled into the folder view have to go back on their page
-        self.rebuild_pages(self.tiles)
-
-    def on_shade_draw(self, widget, cr):
-        """Dim everything behind an open folder, the way macOS does."""
-        alloc = widget.get_allocation()
-        cr.set_source_rgba(0, 0, 0, 0.55)
-        cr.rectangle(0, 0, alloc.width, alloc.height)
-        cr.fill()
-        return False   # let the panel draw on top
-
-    def on_shade_click(self, widget, event):
-        """A click anywhere outside the panel dismisses the folder."""
-        if event.button != 1 or self.open_folder_tile is None:
-            return False
-        alloc = self.folder_panel.get_allocation()
-        inside = (alloc.x <= event.x <= alloc.x + alloc.width
-                  and alloc.y <= event.y <= alloc.y + alloc.height)
-        if not inside:
-            self.close_folder()
+    def on_entry_key(self, entry, event):
+        if event.keyval == Gdk.KEY_Down:
+            shown = self.visible_children()
+            if shown:
+                shown[0].grab_focus()
+            return True
+        if event.keyval == Gdk.KEY_BackSpace and not entry.get_text() and self.category:
+            self.clear_category()
             return True
         return False
 
-    def on_folder_rename(self, *_):
-        if self.open_folder_tile is None:
-            return False
-        name = self.folder_name.get_text().strip()
-        if name and name != self.open_folder_tile.folder["name"]:
-            self.open_folder_tile.folder["name"] = name
-            self.open_folder_tile.refresh_label()
-            self.layout.save()
-        return False
-
-    def rename_folder(self, tile):
-        self.open_folder(tile)
-        self.folder_name.grab_focus()
-        self.folder_name.select_region(0, -1)
-
-    def dissolve_folder(self, tile):
-        entry = self.layout.find_folder(tile.folder["id"])
-        if entry is None:
+    def on_view_toggled(self, item):
+        if not item.get_active() or item.vid == self.view:
             return
-        index = self.layout.items.index(entry)
-        self.layout.items[index:index + 1] = [{"type": "app", "id": a}
-                                              for a in entry["apps"]]
-        self.layout.save()
-        self.close_folder()
-        self.rebuild_tiles()
-        self.toast("Broke up “%s”." % entry["name"])
+        self.view = item.vid
+        save_view(self.view)
+        self.apply_view()
+        self.refilter()
 
-    def handle_item_drop(self, key, target):
-        """A tile was dropped on another tile: make or grow a folder."""
-        if key.startswith("folder:") or target.key() == key:
-            return False
-        if key not in self.apps_by_id:
-            return False
-        if target.is_folder():
-            folder = self.layout.add_to_folder(key, target.folder["id"])
-            if folder is None:
-                return False
-            name = folder["name"]
-        else:
-            target_id = target.app.get_id()
-            if target_id == key:
-                return False
-            suggested = categorise(target.app)
-            folder = self.layout.make_folder(key, target_id, suggested)
-            if folder is None:
-                return False
-            name = folder["name"]
-        self.layout.save()
-        self.rebuild_tiles()
-        self.toast("Added “%s” to “%s”."
-                   % (self.apps_by_id[key].get_display_name(), name))
-        return True
-
-    # -- paging ------------------------------------------------------------------ #
-
-    def goto_page(self, index, animate=True):
-        if not self.pages:
+    def on_child_activated(self, flowbox, child):
+        if self._menu_open:
             return
-        index = max(0, min(index, len(self.pages) - 1))
-        if index == self.page:
-            return
-        self.stack.set_transition_type(
-            Gtk.StackTransitionType.SLIDE_LEFT_RIGHT if animate
-            else Gtk.StackTransitionType.NONE)
-        self.page = index
-        self.stack.set_visible_child_name("page%d" % index)
-        self.dots.configure(len(self.pages), index)
-        self._last_page_change = GLib.get_monotonic_time()
+        self.launch(child.app)
 
-    def on_scroll(self, widget, event):
-        if self.open_folder_tile is not None:
-            return False   # let the folder's ScrolledWindow have it
-        if event.direction == Gdk.ScrollDirection.SMOOTH:
-            # Touchpads emit a stream of small deltas, so accumulate them and
-            # debounce, or one flick would race through every page.
-            ok, dx, dy = event.get_scroll_deltas()
-            if not ok:
-                return True
-            if GLib.get_monotonic_time() - self._last_page_change < PAGE_COOLDOWN_US:
-                self._scroll_accum = 0.0   # don't bank scroll during the settle
-                return True
-            self._scroll_accum += dx if abs(dx) > abs(dy) else dy
-            if abs(self._scroll_accum) < 0.9:
-                return True
-            step = 1 if self._scroll_accum > 0 else -1
-            self._scroll_accum = 0.0
-            self.goto_page(self.page + step)
-            return True
-
-        # A mouse wheel detent is already discrete: one click, one page.
-        # Debouncing these would swallow legitimate fast scrolling.
-        if event.direction in (Gdk.ScrollDirection.DOWN,
-                               Gdk.ScrollDirection.RIGHT):
-            self.goto_page(self.page + 1)
-        elif event.direction in (Gdk.ScrollDirection.UP,
-                                 Gdk.ScrollDirection.LEFT):
-            self.goto_page(self.page - 1)
+    def on_grid_press(self, widget, event):
+        if event.button != 3:
+            return False
+        child = self.grid.get_child_at_pos(int(event.x), int(event.y))
+        if child is None:
+            return False
+        self.popup_menu(child, event)
         return True
-
-    # -- background gestures -------------------------------------------------------- #
-
-    def pointer_press(self, x_root, y_root):
-        self._bg_press = (x_root, y_root)
-
-    def pointer_release(self, x_root, y_root):
-        if self._bg_press is None:
-            return "none"
-        dx = x_root - self._bg_press[0]
-        dy = y_root - self._bg_press[1]
-        self._bg_press = None
-        if abs(dx) > SWIPE_MIN and abs(dx) > abs(dy):
-            self.goto_page(self.page + (1 if dx < 0 else -1))
-            return "swipe"
-        if abs(dx) < 10 and abs(dy) < 10:
-            return "click"
-        return "none"
-
-    def on_bg_press(self, widget, event):
-        if event.button == 1:
-            self.pointer_press(event.x_root, event.y_root)
-        return True
-
-    def on_bg_release(self, widget, event):
-        if event.button != 1:
-            return True
-        if self.pointer_release(event.x_root, event.y_root) == "click":
-            if self.open_folder_tile is not None:
-                self.close_folder()
-            elif self.jiggling:
-                self.stop_jiggle()
-            else:
-                self.hide_launcher()
-        return True
-
-    # -- keyboard ---------------------------------------------------------------------- #
 
     def on_key(self, widget, event):
-        key = event.keyval
-        has_text = bool(self.entry.get_text())
-
-        if key == Gdk.KEY_Escape:
-            if self.open_folder_tile is not None:
-                self.close_folder()
-            elif self.jiggling:
-                self.stop_jiggle()
-            elif has_text:
+        if event.keyval == Gdk.KEY_Escape:
+            if self.entry.get_text():
                 self.entry.set_text("")
+            elif self.category:
+                self.clear_category()
             else:
                 self.hide_launcher()
             return True
-
-        if self.open_folder_tile is not None:
+        if self.entry.has_focus():
             return False
-
-        if key == Gdk.KEY_Page_Down:
-            self.goto_page(self.page + 1); return True
-        if key == Gdk.KEY_Page_Up:
-            self.goto_page(self.page - 1); return True
-        if key == Gdk.KEY_Home and not has_text:
-            self.goto_page(0); return True
-        if key == Gdk.KEY_End and not has_text:
-            self.goto_page(len(self.pages) - 1); return True
-        if key in (Gdk.KEY_Right, Gdk.KEY_Left) and not has_text:
-            self.goto_page(self.page + (1 if key == Gdk.KEY_Right else -1))
-            return True
-
-        if not self.entry.has_focus():
+        ch = Gdk.keyval_to_unicode(event.keyval)
+        if ch and chr(ch).isprintable() and not (event.state & Gdk.ModifierType.CONTROL_MASK):
             self.entry.grab_focus()
+            self.entry.set_text(self.entry.get_text() + chr(ch))
             self.entry.set_position(-1)
+            return True
         return False
 
     def on_focus_out(self, *_):
-        if self.dragging or self.menu_open or self.jiggling:
-            return False
         GLib.timeout_add(120, self._maybe_hide_on_focus)
         return False
 
     def _maybe_hide_on_focus(self):
-        if not (self.dragging or self.menu_open or self.jiggling
-                or self.has_toplevel_focus()):
+        if self.get_visible() and not self.is_active() and not self._menu_open:
             self.hide_launcher()
-        return False
+        return GLib.SOURCE_REMOVE
 
     def on_delete(self, *_):
         self.hide_launcher()
         return True
 
-    # -- jiggle ------------------------------------------------------------------------- #
+    # -- context menu ---------------------------------------------------------- #
 
-    def start_jiggle(self):
-        if self.jiggling:
-            return
-        self.jiggling = True
-        self._jiggle_phase = 0
-        self._jiggle_timer = GLib.timeout_add(90, self._jiggle_step)
+    def popup_menu(self, child, event):
+        app = child.app
+        menu = Gtk.Menu()
+        menu.get_style_context().add_class("lp-menu")
 
-    def _jiggle_step(self):
-        self._jiggle_phase += 1
-        base = math.radians(JIGGLE_DEG)
-        for i, tile in enumerate(self.tiles):
-            tile.angle = base * math.sin((self._jiggle_phase + i * 2) * 0.9)
-            tile.redraw()
-        return True
+        def item(text, cb):
+            mi = Gtk.MenuItem(label=text)
+            mi.connect("activate", lambda *_: cb())
+            menu.append(mi)
+            return mi
 
-    def stop_jiggle(self):
-        if not self.jiggling:
-            return
-        self.jiggling = False
-        if self._jiggle_timer is not None:
-            GLib.source_remove(self._jiggle_timer)
-            self._jiggle_timer = None
-        for tile in self.all_tiles():
-            tile.angle = 0.0
-            tile.redraw()
+        item("Open", lambda: self.launch(app))
+        menu.append(Gtk.SeparatorMenuItem())
+        item("Add to Dock", lambda: self.pin(app))
+        path = app.get_filename() if hasattr(app, "get_filename") else None
+        if path:
+            item("Show in Files", lambda: run_bg(["xdg-open", os.path.dirname(path)]))
+        menu.show_all()
+        self._menu_open = True
+        menu.connect("deactivate", lambda *_: GLib.timeout_add(150, self._clear_menu_flag))
+        menu.popup_at_pointer(event)
 
-    # -- removal -------------------------------------------------------------------------- #
+    def _clear_menu_flag(self):
+        self._menu_open = False
+        if self.get_visible() and not self.is_active():
+            self.hide_launcher()
+        return GLib.SOURCE_REMOVE
 
-    def remove_app(self, tile):
-        if tile.is_folder():
-            return
-        app, path = tile.app, tile.path
-        name = app.get_display_name() or "this app"
-        home = os.path.expanduser("~")
+    def pin(self, app):
+        path = app.get_filename() if hasattr(app, "get_filename") else None
+        ok, err = plank_pin(path)
+        if not ok:
+            print("launchpad: %s" % err, file=sys.stderr)
 
-        if path and path.startswith(home) and os.access(path, os.W_OK):
-            if not self.confirm("Remove “%s”?" % name,
-                                "Its launcher will be moved to the Bin. You can "
-                                "restore it from there."):
-                return
-            try:
-                Gio.File.new_for_path(path).trash(None)
-            except GLib.Error as exc:
-                self.error("Could not remove “%s”." % name, exc.message)
-                return
-            self.stop_jiggle()
-            self.layout.remove_app(app.get_id())
-            self.layout.save()
-            self.toast("Moved “%s” to the Bin." % name)
-            GLib.timeout_add(150, self.reload_apps)
-            return
-
-        pkg, manager = self.owning_package(path)
-        if pkg is None:
-            self.error("“%s” can't be removed automatically." % name,
-                       "Its launcher lives in %s, which belongs to the system, "
-                       "and no package manager claims it."
-                       % (os.path.dirname(path) if path else "an unknown location"))
-            return
-        if not self.confirm("Uninstall “%s”?" % name,
-                            "This removes the %s package “%s”. A terminal will "
-                            "open so you can review exactly what gets removed "
-                            "before confirming." % (manager, pkg)):
-            return
-        self.stop_jiggle()
-        self.hide_launcher()
-        self.run_uninstall(pkg, manager)
-
-    def owning_package(self, path):
-        if not path:
-            return None, None
-        if "/flatpak/" in path:
-            base = os.path.basename(path)
-            return (base[:-len(".desktop")] if base.endswith(".desktop") else base,
-                    "Flatpak")
-        if path.startswith("/var/lib/snapd") or "/snap/" in path:
-            parts = path.split("/")
-            if "snap" in parts:
-                idx = parts.index("snap")
-                if idx + 1 < len(parts):
-                    return parts[idx + 1], "Snap"
-        try:
-            out = subprocess.check_output(["dpkg", "-S", path], text=True,
-                                          stderr=subprocess.DEVNULL)
-            return out.split(":")[0].strip(), "APT"
-        except Exception:
-            return None, None
-
-    def run_uninstall(self, pkg, manager):
-        if manager == "Flatpak":
-            inner = "flatpak uninstall %s" % shlex.quote(pkg)
-        elif manager == "Snap":
-            inner = "sudo snap remove %s" % shlex.quote(pkg)
-        else:
-            inner = "sudo apt remove %s" % shlex.quote(pkg)
-        script = ("%s; echo; read -n 1 -s -r -p 'Done - press any key to close'"
-                  % inner)
-        for term in (["gnome-terminal", "--", "bash", "-c", script],
-                     ["x-terminal-emulator", "-e", "bash", "-c", script],
-                     ["xterm", "-e", "bash", "-c", script]):
-            if run_bg(term):
-                return
-        self.error("Could not open a terminal.",
-                   "Run this yourself:\n\n    %s" % inner)
-
-    # -- dialogs / toast ------------------------------------------------------------------- #
-
-    def confirm(self, primary, secondary):
-        self.menu_open = True
-        dialog = Gtk.MessageDialog(transient_for=self, modal=True,
-                                   message_type=Gtk.MessageType.QUESTION,
-                                   buttons=Gtk.ButtonsType.OK_CANCEL,
-                                   text=primary)
-        dialog.format_secondary_text(secondary)
-        response = dialog.run()
-        dialog.destroy()
-        self.menu_open = False
-        return response == Gtk.ResponseType.OK
-
-    def error(self, primary, secondary):
-        self.menu_open = True
-        dialog = Gtk.MessageDialog(transient_for=self, modal=True,
-                                   message_type=Gtk.MessageType.WARNING,
-                                   buttons=Gtk.ButtonsType.CLOSE, text=primary)
-        if secondary:
-            dialog.format_secondary_text(secondary)
-        dialog.run()
-        dialog.destroy()
-        self.menu_open = False
-
-    def toast(self, text):
-        self.toast_label.set_text(text)
-        self.toast_label.show()
-        if self._toast_timer is not None:
-            GLib.source_remove(self._toast_timer)
-        self._toast_timer = GLib.timeout_add(2200, self._hide_toast)
-
-    def _hide_toast(self):
-        self.toast_label.hide()
-        self._toast_timer = None
-        return False
-
-    # -- launching ---------------------------------------------------------------------------- #
-
-    def launch_context(self):
-        ctx = self.get_display().get_app_launch_context()
-        ctx.set_timestamp(Gtk.get_current_event_time())
-        return ctx
+    # -- launching --------------------------------------------------------------- #
 
     def launch(self, app):
+        ctx = self.get_display().get_app_launch_context()
+        ctx.set_timestamp(Gtk.get_current_event_time())
         try:
-            app.launch(None, self.launch_context())
+            app.launch(None, ctx)
         except GLib.Error as exc:
-            self.error("Could not launch “%s”."
-                       % (app.get_display_name() or "app"), exc.message)
+            print("launchpad: could not launch %s: %s" % (app.get_id(), exc.message),
+                  file=sys.stderr)
             return
         self.hide_launcher()
 
-    # -- geometry / show / hide ------------------------------------------------------------------ #
+    # -- show / hide -------------------------------------------------------------- #
 
-    def current_geometry(self):
+    def work_area(self):
         display = Gdk.Display.get_default()
         monitor = None
         try:
@@ -1693,94 +687,85 @@ class LaunchpadWindow(Gtk.Window):
             monitor = display.get_primary_monitor() or display.get_monitor(0)
         return monitor.get_workarea()
 
-    def dock_gap(self):
-        return plank_height()
-
-    def on_draw(self, widget, cr):
-        width = self.get_allocated_width()
-        height = self.get_allocated_height()
-        cr.set_operator(1)
-        if self.backdrop is not None:
-            Gdk.cairo_set_source_pixbuf(cr, self.backdrop, 0, 0)
-            cr.paint()
-            cr.set_operator(2)
-            cr.set_source_rgba(0.04, 0.04, 0.06, 0.62)
-            cr.rectangle(0, 0, width, height)
-            cr.fill()
-        else:
-            cr.set_source_rgba(0.05, 0.05, 0.07, 0.90)
-            cr.paint()
-        return False
-
-    def folder_is_open(self):
-        return self.open_folder_tile is not None
-
     def show_launcher(self):
         if self.get_visible():
             self.hide_launcher()
             return
-        if GLib.get_monotonic_time() / 1e6 - self._hidden_at < 0.45:
+        if GLib.get_monotonic_time() / 1e6 - self._hidden_at < 0.35:
             return
 
-        geo = self.current_geometry()
-        gap = self.dock_gap()
-        if RESERVE_DOCK:
-            width, height = geo.width, geo.height - gap
-            self.dock_spacer.set_size_request(-1, 0)
-        else:
-            width, height = geo.width, geo.height
-            self.dock_spacer.set_size_request(-1, gap)
+        wa = self.work_area()
+        dock = plank_height()
+        width = min(WIN_W, wa.width - 60)
+        height = min(WIN_H, wa.height - dock - 40)
+        x = wa.x + (wa.width - width) // 2
+        # Tahoe floats it a little above centre of the free area.
+        y = wa.y + max(16, (wa.height - dock - height) * 2 // 5)
 
-        self.backdrop = capture_backdrop(width, height)
+        self.set_theme_class()
+        self.backdrop = capture_backdrop(x, y, width, height)
         self.set_size_request(width, height)
         self.resize(width, height)
+        self.move(x, y)
 
         self.entry.set_text("")
-        self.close_folder()
-        self.stop_jiggle()
-        self.rebuild_pages(self.tiles)
-        self.filtered = self.tiles
-        self.goto_page(0, animate=False)
+        self.clear_category()
+        self.refilter()
 
-        self.anim_scale = 0.86
-        self.content.set_opacity(0.0)
-        self.move(geo.x, geo.y)
+        Gtk.Widget.set_opacity(self, 0.0)
         self.show_all()
-        self.folder_shade.hide()
-        self.folder_panel.hide()
-        self.toast_label.hide()
-        self.move(geo.x, geo.y)
+        self.move(x, y)
         self.present_with_time(Gtk.get_current_event_time())
         self.entry.grab_focus()
         self.start_open_anim()
 
     def hide_launcher(self):
         self._hidden_at = GLib.get_monotonic_time() / 1e6
-        self.stop_jiggle()
-        self.close_folder()
-        self._bg_press = None
-        self.dragging = False
-        self.menu_open = False
+        self._menu_open = False
         self.hide()
+        self.backdrop = None      # ~1.7 MB, not worth keeping between opens
 
-    # -- animation ---------------------------------------------------------------------------------- #
+    def set_theme_class(self):
+        ctx = self.get_style_context()
+        if is_dark_theme():
+            ctx.remove_class("lp-light")
+        else:
+            ctx.add_class("lp-light")
+
+    def on_draw(self, widget, cr):
+        width = self.get_allocated_width()
+        height = self.get_allocated_height()
+        light = self.get_style_context().has_class("lp-light")
+        cr.set_operator(0)                      # CLEAR: transparent corners
+        cr.paint()
+        cr.set_operator(2)                      # OVER
+        rounded_rect(cr, 0.5, 0.5, width - 1, height - 1, RADIUS)
+        cr.clip_preserve()
+        if self.backdrop is not None:
+            Gdk.cairo_set_source_pixbuf(cr, self.backdrop, 0, 0)
+            cr.paint()
+        if light:
+            cr.set_source_rgba(0.95, 0.95, 0.97, 0.80 if self.backdrop else 0.97)
+        else:
+            cr.set_source_rgba(0.10, 0.10, 0.12, 0.76 if self.backdrop else 0.96)
+        cr.paint()
+        cr.reset_clip()
+        rounded_rect(cr, 0.5, 0.5, width - 1, height - 1, RADIUS)
+        cr.set_line_width(1.0)
+        if light:
+            cr.set_source_rgba(0, 0, 0, 0.18)
+        else:
+            cr.set_source_rgba(1, 1, 1, 0.22)
+        cr.stroke()
+        return False
 
     def start_open_anim(self):
         start = GLib.get_monotonic_time()
 
         def tick(widget, clock):
-            elapsed = (GLib.get_monotonic_time() - start) / 1000.0
-            t = min(1.0, elapsed / OPEN_MS)
-            eased = ease_out(t)
-            self.anim_scale = 0.86 + 0.14 * eased
-            self.content.set_opacity(eased)
-            for tile in self.tiles:
-                tile.redraw()
+            t = min(1.0, (GLib.get_monotonic_time() - start) / 1000.0 / OPEN_MS)
+            Gtk.Widget.set_opacity(self, ease_out(t))
             if t >= 1.0:
-                self.anim_scale = 1.0
-                for tile in self.all_tiles():
-                    tile.scale = 1.0
-                    tile.target_scale = 1.0
                 self._anim_tick = None
                 return GLib.SOURCE_REMOVE
             return GLib.SOURCE_CONTINUE
@@ -1789,98 +774,81 @@ class LaunchpadWindow(Gtk.Window):
             self.remove_tick_callback(self._anim_tick)
         self._anim_tick = self.add_tick_callback(tick)
 
-    def start_scale_anim(self):
-        if self._scale_tick is not None:
-            return
-
-        def tick(widget, clock):
-            now = GLib.get_monotonic_time()
-            busy = False
-            for tile in self.all_tiles():
-                if tile.scale == tile.target_scale:
-                    continue
-                t = (now - tile.anim_start) / 1000.0 / HOVER_MS
-                if t >= 1.0:
-                    tile.scale = tile.target_scale
-                else:
-                    span = tile.target_scale - tile.anim_from
-                    tile.scale = tile.anim_from + span * ease_out(t)
-                    busy = True
-                tile.redraw()
-            if not busy:
-                self._scale_tick = None
-                return GLib.SOURCE_REMOVE
-            return GLib.SOURCE_CONTINUE
-
-        self._scale_tick = self.add_tick_callback(tick)
-
-
-# --------------------------------------------------------------------------- #
-#  Application
-# --------------------------------------------------------------------------- #
 
 CSS = b"""
+window.lp-window { background-color: transparent; }
+
+.lp-top { padding: 14px 16px 6px 20px; }
+.lp-glyph { color: rgba(255,255,255,0.85); -gtk-icon-style: symbolic; }
 .lp-search {
-    background-color: rgba(255,255,255,0.14);
+    background: transparent;
     color: #ffffff;
-    border: 1px solid rgba(255,255,255,0.20);
-    border-radius: 9px;
-    padding: 5px 10px;
+    font-size: 21px;
     caret-color: #ffffff;
-}
-.lp-search:focus {
-    background-color: rgba(255,255,255,0.20);
-    border-color: rgba(255,255,255,0.38);
-}
-.lp-search image { color: rgba(255,255,255,0.75); }
-.lp-search selection { background-color: rgba(255,255,255,0.30); }
-
-.app-label {
-    color: #ffffff;
-    font-size: 11.5px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.85);
-}
-
-.lp-folder {
-    background-color: rgba(32,32,36,0.985);
-    border: 1px solid rgba(255,255,255,0.14);
-    border-radius: 22px;
-    padding: 26px 34px 30px 34px;
-}
-.lp-folder-close {
-    color: rgba(255,255,255,0.72);
-    font-size: 15px;
-    padding: 2px 9px;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-}
-.lp-folder-close:hover {
-    background-color: rgba(255,255,255,0.16);
-    color: #ffffff;
-}
-
-.lp-folder-name {
-    background: transparent;
-    color: #ffffff;
-    font-size: 16px;
-    border: none;
+    padding: 0;
+    min-height: 30px;
     box-shadow: none;
-    caret-color: #ffffff;
+    border: none;
 }
+.lp-hint { color: rgba(255,255,255,0.45); font-size: 21px; padding-left: 2px; }
+.lp-search selection { background-color: rgba(255,255,255,0.30); color: #ffffff; }
+.lp-more { padding: 2px; min-width: 24px; min-height: 24px; border-radius: 12px;
+           color: rgba(255,255,255,0.75); background: transparent; border: none; box-shadow: none; }
+.lp-more:hover { background-color: rgba(255,255,255,0.12); color: #ffffff; }
 
-.lp-toast {
+.lp-pill-scroller { background: transparent; padding: 0 16px 2px 16px; border: none; }
+.lp-pills { padding: 2px 0 6px 0; }
+.lp-pill {
+    background-color: rgba(255,255,255,0.10);
     color: #ffffff;
-    background-color: rgba(0,0,0,0.55);
-    border-radius: 9px;
-    padding: 7px 14px;
-    margin-bottom: 12px;
     font-size: 12px;
+    padding: 1px 11px;
+    min-height: 22px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow: none;
+    text-shadow: none;
+}
+.lp-pill:hover { background-color: rgba(255,255,255,0.16); }
+.lp-pill:checked, .lp-pill:checked:hover {
+    background-color: rgba(255,255,255,0.88);
+    color: #1c1c1e;
+    border-color: transparent;
 }
 
-menu { background-color: #2b2b2e; }
-menu menuitem { color: #f2f2f2; padding: 5px 12px; }
-menu menuitem:hover { background-color: #3a7bd5; }
+.lp-scroller { background-color: transparent; border-top: 1px solid rgba(255,255,255,0.10); }
+.lp-scroller scrollbar, .lp-scroller scrollbar trough { background-color: transparent; border: none; }
+.lp-scroller scrollbar slider { background-color: rgba(255,255,255,0.35); min-width: 6px; border-radius: 6px; }
+.lp-grid { background-color: transparent; padding: 10px 14px 16px 14px; }
+.lp-grid flowboxchild { border-radius: 12px; padding: 0; outline: none; }
+.lp-grid flowboxchild:hover { background-color: rgba(255,255,255,0.10); }
+.lp-grid flowboxchild:focus { background-color: rgba(255,255,255,0.16); }
+.lp-tile { padding: 10px 4px 8px 4px; }
+.lp-row { padding: 6px 10px; }
+.lp-app-label { color: #ffffff; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+.lp-list .lp-app-label { font-size: 13px; }
+.lp-empty { color: rgba(255,255,255,0.5); font-size: 15px; padding: 60px; }
+
+menu.lp-menu { background-color: #2b2b2e; border-radius: 8px; }
+menu.lp-menu menuitem { color: #f2f2f2; padding: 5px 12px; }
+menu.lp-menu menuitem:hover { background-color: #0a84ff; }
+
+/* light appearance (follows the GTK theme, like the Control Center) */
+.lp-light .lp-glyph { color: rgba(0,0,0,0.6); }
+.lp-light .lp-search { color: #000000; caret-color: #000000; }
+.lp-light .lp-hint { color: rgba(255,255,255,0.45); font-size: 21px; padding-left: 2px; }
+.lp-search selection { background-color: rgba(0,122,255,0.3); color: #000000; }
+.lp-light .lp-more { color: rgba(0,0,0,0.6); }
+.lp-light .lp-more:hover { background-color: rgba(0,0,0,0.08); color: #000000; }
+.lp-light .lp-pill { background-color: rgba(255,255,255,0.55); color: #1c1c1e; border-color: rgba(0,0,0,0.08); }
+.lp-light .lp-pill:hover { background-color: rgba(255,255,255,0.8); }
+.lp-light .lp-pill:checked, .lp-light .lp-pill:checked:hover { background-color: #ffffff; color: #000000; }
+.lp-light .lp-scroller { border-top-color: rgba(0,0,0,0.10); }
+.lp-light .lp-scroller scrollbar slider { background-color: rgba(0,0,0,0.3); }
+.lp-light .lp-grid flowboxchild:hover { background-color: rgba(0,0,0,0.06); }
+.lp-light .lp-grid flowboxchild:focus { background-color: rgba(0,0,0,0.10); }
+.lp-light .lp-app-label { color: #000000; text-shadow: none; }
+.lp-light .lp-empty { color: rgba(0,0,0,0.5); }
 """
 
 
@@ -1904,7 +872,7 @@ class LaunchpadApp(Gtk.Application):
 
     def ensure_window(self):
         if self.window is None:
-            self.window = LaunchpadWindow(self)
+            self.window = AppsWindow(self)
             self.add_window(self.window)
         return self.window
 

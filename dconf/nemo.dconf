@@ -5,8 +5,18 @@ network-icon-visible=false
 show-orphaned-desktop-icons=true
 trash-icon-visible=true
 
+[preferences]
+show-compact-view-icon-toolbar=false
+show-edit-icon-toolbar=false
+show-reload-icon-toolbar=false
+show-up-icon-toolbar=false
+
 [window-state]
-geometry='800x550+34+58'
+geometry='800x550+340+162'
 maximized=false
+my-computer-expanded=true
+network-expanded=true
 sidebar-bookmark-breakpoint=5
+sidebar-width=190
+start-with-menu-bar=false
 start-with-sidebar=true

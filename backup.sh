@@ -62,10 +62,13 @@ cp -a "$HOME"/.config/autostart/*.desktop "$CFG/autostart/" 2>/dev/null && \
 
 mkdir -p "$CFG/gtk-3.0"
 cp -a "$HOME/.config/gtk-3.0/bookmarks" "$CFG/gtk-3.0/" 2>/dev/null && say "gtk-3.0/bookmarks"
-# The Control Center's Dark Mode tile keeps the hand-written (dark-only)
-# gtk.css as gtk.css.dark and symlinks gtk.css to it only in dark mode; keep
-# the file and remember whether the link was present.
-cp -a "$HOME/.config/gtk-3.0/gtk.css.dark" "$CFG/gtk-3.0/" 2>/dev/null && say "gtk-3.0/gtk.css.dark"
+# gtk.css is a symlink owned by the Control Center's Dark Mode tile:
+# gtk.css.dark (dark-only cinnamon-settings restyle + Finder skin) or
+# gtk.css.light (Finder skin only); finder.css is the Nemo-as-Finder
+# stylesheet both import. Keep the files and remember the link target.
+for f in gtk.css.dark gtk.css.light finder.css; do
+  cp -a "$HOME/.config/gtk-3.0/$f" "$CFG/gtk-3.0/" 2>/dev/null && say "gtk-3.0/$f"
+done
 rm -f "$CFG/gtk-3.0/gtk.css.link"
 [[ -L "$HOME/.config/gtk-3.0/gtk.css" ]] && readlink "$HOME/.config/gtk-3.0/gtk.css" > "$CFG/gtk-3.0/gtk.css.link" && say "gtk-3.0/gtk.css -> $(cat "$CFG/gtk-3.0/gtk.css.link")"
 cp -a "$HOME/.config/mimeapps.list"     "$CFG/mimeapps.list" 2>/dev/null && say "mimeapps.list"
