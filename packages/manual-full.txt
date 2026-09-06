@@ -1663,6 +1663,7 @@ python3-pam
 python3-parted
 python3-pexpect
 python3-pil
+python3-pip
 python3-pkg-resources
 python3-png
 python3-problem-report
@@ -1822,6 +1823,7 @@ uuid-runtime
 va-driver-all
 vim-common
 vim-tiny
+virtualenv
 vulkan-tools
 wamerican
 warpinator

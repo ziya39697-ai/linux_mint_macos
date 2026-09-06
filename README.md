@@ -30,7 +30,7 @@ There is no window-list applet — Plank does that job.
 | Path | What |
 |---|---|
 | `dconf/` | 7 `dconf` dumps: Cinnamon, Plank, Nemo, GNOME desktop, X-Apps, GTK, Mint |
-| `config/cinnamon/spices/` | Applet settings — the panel menu icon, calendar format `%A, %B %e, %H:%M` |
+| `config/cinnamon/spices/` | Applet settings — the panel menu icon, calendar format `%a %b %-d  %-I:%M %p` (macOS-style, 12-hour) |
 | `config/plank/` | The 6 dock items and their order |
 | `config/launchpad/layout.json` | Launchpad page/grid layout (30 apps + 2 folders) |
 | `config/autostart/` | Plank + Launchpad daemon autostart entries |

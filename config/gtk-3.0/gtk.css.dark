@@ -1,0 +1,78 @@
+/* ============================================================
+   Sonoma-style restyle of Cinnamon System Settings
+   ------------------------------------------------------------
+   IMPORTANT: GTK3's GtkBuilder does NOT turn a .ui "id" into a
+   widget name, so #main_box / #search_box / #content_box style
+   selectors match NOTHING. Verified: Builder.get_object("main_box")
+   .get_name() returns "GtkBox".
+
+   The only usable hook is .cs-category-view, added in Python at
+   cinnamon-settings.py:288. Everything below hangs off it, which
+   also keeps these rules from leaking into other GTK3 apps.
+
+   Scope reached:     the category landing screen.
+   Scope NOT reached: settings detail panes, toolbar, search box
+                      (no CSS class exists on them).
+
+   Revert with:  rm ~/.config/gtk-3.0/gtk.css
+   ============================================================ */
+
+@define-color sonoma_window  #1c1c1e;
+@define-color sonoma_accent  #0a84ff;
+@define-color sonoma_text2   rgba(235,235,245,0.60);
+
+/* --- Surface: the SW's own bg is painted over by the viewport,
+       so colour the viewport/box instead --- */
+.cs-category-view,
+.cs-category-view viewport,
+.cs-category-view > viewport > box {
+    background-color: @sonoma_window;
+    border: none;
+}
+
+/* --- Category group headers ("Appearance", "Preferences").
+       IconView captions are cell renderers, not GtkLabels, so
+       this only hits the real headers. --- */
+.cs-category-view label {
+    color: @sonoma_text2;
+    font-weight: 600;
+}
+
+/* --- Grid items: Sonoma rounded hover + accent selection --- */
+.cs-category-view iconview {
+    background-color: transparent;
+}
+.cs-category-view iconview:hover {
+    background-color: rgba(255,255,255,0.06);
+    border-radius: 10px;
+}
+.cs-category-view iconview:selected,
+.cs-category-view iconview:selected:focus,
+.cs-category-view iconview:selected:hover {
+    background-color: @sonoma_accent;
+    color: #ffffff;
+    border-radius: 10px;
+    outline: none;
+}
+
+/* --- Hairline separators between groups --- */
+.cs-category-view separator {
+    background-color: rgba(255,255,255,0.08);
+    min-height: 1px;
+}
+
+/* --- Thin overlay scrollbar --- */
+.cs-category-view scrollbar {
+    background-color: transparent;
+    border: none;
+}
+.cs-category-view scrollbar slider {
+    background-color: rgba(255,255,255,0.25);
+    border-radius: 8px;
+    min-width: 7px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+.cs-category-view scrollbar slider:hover {
+    background-color: rgba(255,255,255,0.40);
+}

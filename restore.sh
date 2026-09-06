@@ -143,6 +143,11 @@ for f in "$STAGE"/config/autostart/*.desktop; do
   copy "$f" "$HOME/.config/autostart/$(basename "$f")"
 done
 copy "$STAGE/config/gtk-3.0/bookmarks" "$HOME/.config/gtk-3.0/bookmarks"
+copy "$STAGE/config/gtk-3.0/gtk.css.dark" "$HOME/.config/gtk-3.0/gtk.css.dark"
+if [[ -f "$STAGE/config/gtk-3.0/gtk.css.link" ]] && [[ ! -e "$HOME/.config/gtk-3.0/gtk.css" || -L "$HOME/.config/gtk-3.0/gtk.css" ]]; then
+  run "ln -sfn '$(cat "$STAGE/config/gtk-3.0/gtk.css.link")' '$HOME/.config/gtk-3.0/gtk.css'"
+  say "gtk-3.0/gtk.css -> $(cat "$STAGE/config/gtk-3.0/gtk.css.link")"
+fi
 copy "$STAGE/config/mimeapps.list"     "$HOME/.config/mimeapps.list"
 copy "$STAGE/config/conkyrc"           "$HOME/.conkyrc"
 copy "$STAGE/config/gitconfig"         "$HOME/.gitconfig"

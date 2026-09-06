@@ -55,3 +55,48 @@ together: BlurCinnamon's `enable-popup-effects` turned on, **and** the
 `border-image: none` rule in `stylesheet.css` — WhiteSur-Dark-solid paints
 `.popup-menu` with an opaque 9-slice image that BlurCinnamon does not override.
 With blur off, the stylesheet's `background-color` is a translucent fallback.
+
+## Panel battery glyph
+
+The panel battery is drawn with Cairo (`lib/batteryGlyph.js`), not taken from
+the icon theme, so it can match the macOS menu bar battery: a wide body with a
+faint frame, a solid fill that tracks the exact percentage, a bolt while on AC,
+red at or under 20%, yellow while the `power-saver` profile is active.
+
+Preview every state without reloading Cinnamon:
+
+    cjs tools/preview-battery.js /tmp/battery.png 8
+
+## Dark Mode tile
+
+Flips the WhiteSur pair `WhiteSur-Dark-solid` ↔ `WhiteSur-Light-solid` for
+`org.cinnamon.desktop.interface gtk-theme` and `org.cinnamon.theme name`, sets
+`org.x.apps.portal color-scheme` (`prefer-dark` / `default`) for portal and
+libadwaita apps, and toggles `cc-light` on this applet's own menus.
+
+`~/.config/gtk-3.0/gtk.css` was a hand-written dark-only restyle of
+cinnamon-settings; it now lives as `gtk.css.dark`, and the tile symlinks
+`gtk.css` → `gtk.css.dark` only while dark mode is on.  A real (non-symlink)
+`gtk.css` is never touched.  The light theme was unpacked from
+`~/WhiteSur-gtk-theme/release/WhiteSur-Light-solid.tar.xz` into `~/.themes`.
+
+## Two menus, two source actors
+
+The Control Center and battery menus are plain `PopupMenu.PopupMenu`s anchored
+on the glyph bin and the battery item respectively — not `AppletPopupMenu`,
+which would anchor both on the whole applet actor and make the manager's
+hover-switching fire from any pointer movement across the applet.
+
+## Control Center layout (macOS Tahoe)
+
+Traced from Apple's own Control Center screenshot: no opaque panel, glass
+tiles floating over the backdrop.  Left column: Wi-Fi, Bluetooth and
+Warpinator (Mint's AirDrop) pills; right: the Now Playing square (driven by
+the active sound@ Player) over Night Light and Dark Mode round buttons; then
+Screen Mirroring, Screenshot and the Do Not Disturb pill; then Display,
+Keyboard and Sound sliders with icons outside a thin track.
+
+Glass is a tint, not a blur: BlurCinnamon's popup effects are off (its static
+blur samples the wallpaper, not the window underneath).  Note the Cinnamon 6
+menu actor's classes are `menu menu-top`, not `popup-menu` — container rules
+in stylesheet.css must say `.menu…` or they silently never match.

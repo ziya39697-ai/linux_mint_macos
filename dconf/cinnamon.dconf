@@ -6,9 +6,9 @@ enabled-extensions=['BlurCinnamon@klangman']
 next-applet-id=20
 no-adjacent-panel-barriers=false
 panel-edit-mode=false
-panel-zone-icon-sizes='[{"panelId":1,"left":0,"center":0,"right":24}]'
+panel-zone-icon-sizes='[{"panelId":1,"left":0,"center":0,"right":16}]'
 panel-zone-symbolic-icon-sizes='[{"panelId": 1, "left": 28, "center": 28, "right": 16}]'
-panel-zone-text-sizes='[{"panelId":1,"left":0,"center":0,"right":0}]'
+panel-zone-text-sizes='[{"panelId":1,"left":0,"center":0,"right":9}]'
 panels-autohide=['1:false', '2:false']
 panels-enabled=['1:0:top']
 panels-height=['1:24', '2:40']
@@ -29,6 +29,7 @@ image-source='xml:///usr/share/cinnamon-background-properties/linuxmint-wallpape
 sources=[('xkb', 'us')]
 
 [desktop/interface]
+clock-use-24h=false
 cursor-size=24
 cursor-theme='WhiteSur-cursors'
 font-name='Inter 10'

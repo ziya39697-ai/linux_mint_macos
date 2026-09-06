@@ -1,6 +1,24 @@
 [apps/portal]
 color-scheme='prefer-dark'
 
+[editor/plugins]
+active-plugins=['spell', 'bracketcompletion', 'time', 'filebrowser', 'docinfo', 'textsize', 'joinlines', 'sort', 'open-uri-context-menu', 'modelines']
+
+[editor/plugins/filebrowser/on-load]
+root='file:///'
+tree-view=true
+virtual-root='file:///usr/share/desktop-directories'
+
+[editor/preferences/ui]
+statusbar-visible=true
+
+[editor/state/window]
+bottom-panel-size=140
+side-panel-active-page=827629879
+side-panel-size=200
+size=(650, 500)
+state=87168
+
 [pix/browser]
 browser-sidebar-width=285
 fullscreen-sidebar='hidden'

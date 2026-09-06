@@ -156,7 +156,7 @@
         "units": "px",
         "description": "Icon size",
         "dependency": "menu-custom",
-        "value": 18.0
+        "value": 16.0
     },
     "menu-label": {
         "type": "entry",
@@ -169,7 +169,7 @@
         "type": "switch",
         "default": true,
         "description": "Use symbolic icons for categories",
-        "value": true
+        "value": false
     },
     "category-icon-size": {
         "type": "spinbutton",
@@ -179,7 +179,7 @@
         "step": 1,
         "units": "px",
         "description": "Categories icon size",
-        "value": 16.0
+        "value": 20.0
     },
     "application-icon-size": {
         "type": "spinbutton",
@@ -189,19 +189,19 @@
         "step": 1,
         "units": "px",
         "description": "Applications icon size",
-        "value": 32
+        "value": 20.0
     },
     "show-sidebar": {
         "type": "switch",
         "default": true,
         "description": "Sidebar",
-        "value": true
+        "value": false
     },
     "show-avatar": {
         "type": "switch",
         "default": true,
         "description": "Avatar",
-        "value": true
+        "value": false
     },
     "show-home": {
         "type": "switch",
@@ -213,7 +213,7 @@
         "type": "switch",
         "default": true,
         "description": "Desktop",
-        "value": true
+        "value": false
     },
     "show-documents": {
         "type": "switch",
@@ -225,7 +225,7 @@
         "type": "switch",
         "default": true,
         "description": "Downloads",
-        "value": true
+        "value": false
     },
     "show-music": {
         "type": "switch",
@@ -249,7 +249,7 @@
         "type": "switch",
         "default": true,
         "description": "Other bookmarks",
-        "value": true
+        "value": false
     },
     "system-position": {
         "type": "combobox",
@@ -269,7 +269,7 @@
             "At the top": "top",
             "At the bottom": "bottom"
         },
-        "value": "bottom"
+        "value": "top"
     },
     "sidebar-icon-size": {
         "type": "spinbutton",
@@ -280,7 +280,7 @@
         "units": "px",
         "description": "Sidebar icon size",
         "dependency": "show-sidebar",
-        "value": 24
+        "value": 20.0
     },
     "sidebar-max-width": {
         "type": "spinbutton",
@@ -289,25 +289,25 @@
         "max": 600,
         "step": 1,
         "description": "Maximum sidebar width (px)",
-        "value": 180
+        "value": 150.0
     },
     "show-favorites": {
         "type": "switch",
         "default": true,
         "description": "Favorites",
-        "value": true
+        "value": false
     },
     "show-recents": {
         "type": "switch",
         "default": true,
         "description": "Recents",
-        "value": true
+        "value": false
     },
     "show-description": {
         "type": "switch",
         "default": true,
         "description": "Show application descriptions",
-        "value": true
+        "value": false
     },
     "category-hover": {
         "type": "switch",

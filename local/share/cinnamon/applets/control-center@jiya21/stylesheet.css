@@ -1,77 +1,83 @@
 /*
- * Control Center styling — a macOS-style tile grid.
+ * Control Center styling — Apple's Control Center (macOS Tahoe): no opaque
+ * panel, just glass tiles floating over whatever is behind them.
  * Everything is scoped to .control-center-menu so no other applet menu on the
  * desktop is affected.
+ *
+ * Glass here is a tint, not a blur.  BlurCinnamon's popup effects are off
+ * (its static blur samples the wallpaper, not the window underneath, and
+ * appeared to punch a hole through that window), so every tile carries a
+ * dark tint plus a light hairline that reads on both bright and dark
+ * backdrops, and text gets a faint shadow.
  */
 
-/*
- * WhiteSur-Dark-solid paints .popup-menu with an opaque 9-slice
- * (border-image: assets/menu-solid.svg, cinnamon.css:317-322), which would
- * square off our rounded corners.  Clear it and paint the background here.
+/* ------------------------------------------------------- menu containers */
+
+/* Cinnamon 6 gives the menu actor the classes `menu menu-top`, not
+ * `popup-menu` (verified via get_style_class_name()), and the theme paints
+ * `.menu` with an opaque 9-slice: border-image: url(assets/menu-solid.svg)
+ * (cinnamon.css:316-322).  Every container rule here must say `.menu`.
  *
- * Deliberately NOT blurred.  BlurCinnamon's popup blur is *static* (Dual
- * Kawase against the wallpaper), so an open menu sampled the desktop rather
- * than the window beneath it and appeared to punch a hole through that window.
- * Dynamic blur would sample real windows but is the mode that is heavy and
- * crash-prone on this Intel HD 6000, so the menu is simply near-opaque, which
- * is how a normal macOS menu reads over a window anyway.
- */
-.popup-menu.control-center-menu {
+ * The Control Center itself has no background: the tiles are the surface. */
+.menu.control-center-menu.cc-main-menu {
+    border-image: none;
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+}
+
+/* The battery menu stays a regular dark menu.  WhiteSur-Dark-solid paints
+ * .popup-menu with an opaque 9-slice (cinnamon.css:317-322), which would
+ * square off the corners: clear it and paint the background here. */
+.menu.control-center-menu.cc-battery-menu {
     border-image: none;
     background-color: rgba(30, 30, 32, 0.96);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 14px;
+    border-radius: 16px;
     padding: 0;
     box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
 }
 
-/* The battery menu is a plain list, so it keeps the theme's own item padding. */
-.popup-menu.cc-battery-menu .popup-menu-content {
-    padding: 8px 6px;
-}
-
-/* Panel: breathing room between the battery percentage and the glyph, the way
- * macOS spaces its menu bar items. */
-.cc-panel-glyph {
-    padding-left: 9px;
-    padding-right: 2px;
-}
-
 /* The theme gives .popup-menu-content 1em 6px of padding (cinnamon.css:352-356).
  * The grid does its own spacing, so zero it out for this menu only. */
-.popup-menu.control-center-menu .popup-menu-content {
+.menu.control-center-menu .popup-menu-content {
     padding: 0;
 }
 
+.menu.cc-battery-menu .popup-menu-content {
+    padding: 6px 6px 8px 6px;
+}
+
 .control-center-menu .cc-page {
+    padding: 8px;
+}
+
+/* Wi-Fi / Bluetooth detail pages are lists, so they get one glass sheet. */
+.control-center-menu .cc-page-detail {
+    background-color: rgba(18, 22, 40, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 22px;
     padding: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.30);
 }
 
 .control-center-menu .cc-grid {
-    spacing-rows: 8px;
-    spacing-columns: 8px;
+    spacing-rows: 10px;
+    spacing-columns: 10px;
 }
 
-/* ------------------------------------------------------------------ tiles */
+/* ------------------------------------------------------------------ glass */
 
 .control-center-menu .cc-tile {
-    background-color: rgba(255, 255, 255, 0.10);
-    border-radius: 12px;
-    padding: 10px 12px;
+    background-color: rgba(18, 22, 40, 0.56);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 22px;
+    padding: 10px 14px;
     spacing: 6px;
-}
-
-.control-center-menu .cc-tile-square {
-    width: 82px;
-    padding: 10px 6px;
-}
-
-.control-center-menu .cc-square-box {
-    spacing: 4px;
-}
-
-.control-center-menu .cc-tile-square:hover {
-    background-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    color: #ffffff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 .control-center-menu .cc-tile-title {
@@ -82,98 +88,231 @@
 
 .control-center-menu .cc-tile-sub {
     font-size: 0.85em;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.85);
 }
 
-/* ------------------------------------------------- connectivity rows */
+/* ------------------------------------------------------------- pill tiles */
 
-.control-center-menu .cc-conn-row {
-    spacing: 10px;
-    padding: 4px 0;
+/* Pills and the Now Playing square are both two columns wide (2*66+10). */
+.control-center-menu .cc-pill {
+    width: 142px;
+    height: 66px;
+    border-radius: 33px;
+    padding: 0 6px 0 6px;
+    spacing: 8px;
 }
 
-.control-center-menu .cc-conn-label {
-    border-radius: 8px;
-    padding: 2px 6px;
+.control-center-menu .cc-nowplaying {
+    width: 142px;
 }
 
-.control-center-menu .cc-conn-label:hover {
+.control-center-menu .cc-pill-button:hover,
+.control-center-menu .cc-round:hover {
+    background-color: rgba(18, 22, 40, 0.68);
+}
+
+.control-center-menu .cc-pill-label {
+    border-radius: 12px;
+    padding: 4px 6px;
+}
+
+.control-center-menu .cc-pill-label:hover {
     background-color: rgba(255, 255, 255, 0.10);
 }
 
-/* --------------------------------------------------- circular toggles */
+.control-center-menu .cc-wide-box {
+    spacing: 10px;
+}
 
+/* ------------------------------------------------------- round toggles */
+
+/* The 46 px circle inside a pill.  Off: glass.  On: white with a blue glyph,
+ * as Apple paints Wi-Fi / Bluetooth / AirDrop. */
 .control-center-menu .cc-circle {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     border-radius: 9999px;
-    background-color: rgba(255, 255, 255, 0.16);
+    background-color: rgba(255, 255, 255, 0.20);
     color: #ffffff;
     border: none;
 }
 
 .control-center-menu .cc-circle:hover {
-    background-color: rgba(255, 255, 255, 0.24);
+    background-color: rgba(255, 255, 255, 0.30);
 }
 
-/* State is a real class, not a :checked pseudo-class, so it does not depend on
- * how the theme resolves descendant pseudo-selectors. */
+.control-center-menu .cc-circle:active {
+    background-color: rgba(255, 255, 255, 0.38);
+}
+
 .control-center-menu .cc-circle-on {
-    background-color: #0a84ff;
-    color: #ffffff;
+    background-color: #ffffff;
+    color: #0a84ff;
 }
 
 .control-center-menu .cc-circle-on:hover {
-    background-color: #339dff;
+    background-color: #f2f6ff;
+}
+
+/* Do Not Disturb's moon is indigo on white. */
+.control-center-menu .cc-circle-focus.cc-circle-on {
+    color: #5e5ce6;
 }
 
 .control-center-menu .cc-circle-dim {
-    background-color: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.35);
+    background-color: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.40);
 }
 
-/* -------------------------------------------------- fat pill sliders */
+/* The free-standing round buttons (Night Light, Dark Mode, Mirroring,
+ * Screenshot): a whole glass tile that is a circle. */
+.control-center-menu .cc-round {
+    width: 66px;
+    height: 66px;
+    border-radius: 9999px;
+    padding: 0;
+}
 
-.control-center-menu .cc-fatslider {
-    height: 30px;
+.control-center-menu .cc-round-on {
+    background-color: #ffffff;
+    color: #0a84ff;
+}
+
+.control-center-menu .cc-round-on:hover {
+    background-color: #f2f6ff;
+}
+
+/* ------------------------------------------------------- Now Playing */
+
+.control-center-menu .cc-nowplaying {
+    padding: 12px 12px 8px 12px;
+    spacing: 6px;
+}
+
+.control-center-menu .cc-np-art {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.control-center-menu .cc-np-title {
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-np-controls {
+    spacing: 4px;
+}
+
+.control-center-menu .cc-np-btn {
+    width: 32px;
+    height: 28px;
+    border-radius: 8px;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-np-play StIcon {
+    icon-size: 22px;
+}
+
+.control-center-menu .cc-np-btn:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.control-center-menu .cc-np-dim {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* ------------------------------------------------------------ sliders */
+
+.control-center-menu .cc-slider-tile {
+    padding: 10px 14px 12px 14px;
+    spacing: 8px;
+}
+
+.control-center-menu .cc-slider {
+    spacing: 8px;
+}
+
+.control-center-menu .cc-slider-left StIcon {
+    icon-size: 12px;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-slider-right {
+    color: #ffffff;
 }
 
 /*
  * Beats the theme's `.popup-slider-menu-item` (0,2,0 vs 0,1,0), which sets
- * -slider-height: 4px (cinnamon.css:198-213).
- *
- * The pill radius is computed, not themed: min(width, sliderHeight)/2
- * (popupMenu.js:703), so 26px height gives a 13px radius.  Matching
- * -slider-handle-radius keeps the fill edge sweeping exactly between the two
- * cap centres, and `color: transparent` hides the handle dot
- * (popupMenu.js:751-753) for the knob-less macOS look.
+ * -slider-height: 4px (cinnamon.css:198-213).  A thin white bar with rounded
+ * ends and no knob (`color: transparent` hides the handle, popupMenu.js:751).
  */
-.control-center-menu .cc-fat-groove {
-    height: 26px;
+.control-center-menu .cc-thin-groove {
+    height: 18px;
     min-width: 0;
     border: none;
     padding: 0;
-    -slider-height: 26px;
-    -slider-handle-radius: 13px;
+    -slider-height: 6px;
+    -slider-handle-radius: 3px;
     -slider-border-width: 0;
     -slider-border-color: transparent;
     -slider-active-border-color: transparent;
-    -slider-background-color: rgba(255, 255, 255, 0.18);
+    -slider-background-color: rgba(255, 255, 255, 0.28);
     -slider-active-background-color: #ffffff;
     color: transparent;
 }
 
-/* The icon rides inside the groove, dark against the white filled portion. */
-.control-center-menu .cc-fatslider-iconbin {
-    padding-left: 7px;
+.control-center-menu .cc-mini-round {
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    background-color: rgba(255, 255, 255, 0.20);
+    color: #ffffff;
 }
 
-.control-center-menu .cc-fatslider-iconbin StIcon {
-    icon-size: 16px;
-    color: rgba(0, 0, 0, 0.55);
+.control-center-menu .cc-mini-round:hover {
+    background-color: rgba(255, 255, 255, 0.30);
 }
 
 /* -------------------------------------------------- detail pages */
+
+/* Wi-Fi / Bluetooth rows: circle glyph, name, status/signal on the right. */
+.control-center-menu .cc-list-circle {
+    width: 30px;
+    height: 30px;
+}
+
+.control-center-menu .cc-net-row {
+    padding: 5px 8px;
+    border-radius: 12px;
+}
+
+.control-center-menu .cc-net-box {
+    spacing: 10px;
+}
+
+.control-center-menu .cc-net-box StLabel {
+    color: #ffffff;
+}
+
+.control-center-menu.cc-light .cc-net-box StLabel {
+    color: #000000;
+}
+
+.control-center-menu .cc-net-status {
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.control-center-menu .nm-menu-item-icons StIcon {
+    icon-size: 16px;
+}
+
+.control-center-menu.cc-light .cc-net-status {
+    color: rgba(0, 0, 0, 0.55);
+}
 
 .control-center-menu .cc-detail-header {
     spacing: 6px;
@@ -193,6 +332,7 @@
 
 .control-center-menu .cc-detail-title {
     font-weight: bold;
+    color: #ffffff;
 }
 
 .control-center-menu .control-center-wifi-scroll {
@@ -201,7 +341,7 @@
 
 .control-center-menu .popup-menu-item {
     padding: 0.4em 0.9em;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 .control-center-menu .popup-subtitle-menu-item {
@@ -211,4 +351,197 @@
 .control-center-menu .popup-inactive-menu-item {
     color: rgba(255, 255, 255, 0.55);
     font-size: 0.9em;
+}
+
+/* --------------------------------------------------- battery menu */
+
+/* PopupBaseMenuItem tags every non-reactive row with popup-inactive-menu-item,
+ * which this sheet dims and shrinks; the header must not inherit that. */
+.control-center-menu .popup-inactive-menu-item.cc-batt-header-item {
+    padding: 4px 0.9em 6px 0.9em;
+    color: #ffffff;
+    font-size: 1em;
+}
+
+.control-center-menu .cc-batt-header {
+    spacing: 2px;
+    min-width: 230px;
+}
+
+.control-center-menu .cc-batt-title {
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-batt-pct {
+    color: rgba(255, 255, 255, 0.55);
+    padding-left: 12px;
+}
+
+.control-center-menu .cc-batt-sub {
+    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.control-center-menu .cc-batt-caption {
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.45);
+    padding-top: 2px;
+    padding-bottom: 0;
+}
+
+/* ------------------------------------------------------------ panel */
+
+/* The base Applet actor is track_hover and the theme paints a full-width
+ * `.applet-box:hover` / `:checked` highlight on it.  Each item paints its own
+ * pill instead, so both are neutralised — scoped to this applet via the
+ * extra class (2 classes out-rank the theme's 1). */
+.applet-box.cc-panel-actor:hover,
+.applet-box.cc-panel-actor:checked,
+.applet-box.cc-panel-actor:checked:hover {
+    background-color: transparent;
+}
+
+/* The applet box itself keeps almost no padding: the two hit areas below
+ * take the whole width, so there is no dead strip to mis-click into. */
+.applet-box.cc-panel-actor {
+    padding: 0 2px;
+}
+
+/* Invisible, full-height click targets; the visible pills sit inside. */
+.cc-panel-hit-battery {
+    padding: 0 5px 0 4px;
+}
+
+.cc-panel-hit-cc {
+    padding: 0 4px 0 5px;
+}
+
+.cc-panel-battery-btn {
+    padding: 2px 7px;
+    border-radius: 5px;
+    transition-duration: 100ms;
+    spacing: 5px;              /* "74%" ↔ glyph, as on macOS */
+}
+
+.cc-panel-battery-btn .cc-battery-glyph {
+    padding: 0;
+}
+
+.cc-panel-cc-btn {
+    padding: 2px 5px;
+    border-radius: 5px;
+    transition-duration: 100ms;
+}
+
+/* Hover and open-state paint the inner pill, driven by the hit area. */
+.cc-panel-hit:hover .cc-panel-battery-btn,
+.cc-panel-hit:hover .cc-panel-cc-btn {
+    background-color: rgba(255, 255, 255, 0.09);
+}
+
+.cc-panel-hit.cc-panel-btn-active .cc-panel-battery-btn,
+.cc-panel-hit.cc-panel-btn-active .cc-panel-cc-btn,
+.cc-panel-hit.cc-panel-btn-active:hover .cc-panel-battery-btn,
+.cc-panel-hit.cc-panel-btn-active:hover .cc-panel-cc-btn {
+    background-color: rgba(255, 255, 255, 0.20);
+}
+
+/* ------------------------------------------------------------ light mode
+ * The Dark Mode button toggles cc-light on both menu actors (applet.js
+ * _syncDarkMode).  Apple's light glass is bright and frosted: white tint,
+ * dark text, no text shadow. */
+
+.control-center-menu.cc-light .cc-tile,
+.control-center-menu.cc-light .cc-page-detail {
+    background-color: rgba(255, 255, 255, 0.62);
+    border-color: rgba(255, 255, 255, 0.75);
+    color: #000000;
+    text-shadow: none;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+
+.control-center-menu.cc-light .cc-pill-button:hover,
+.control-center-menu.cc-light .cc-round:hover {
+    background-color: rgba(255, 255, 255, 0.78);
+}
+
+.control-center-menu.cc-light .cc-tile-title,
+.control-center-menu.cc-light .cc-np-title,
+.control-center-menu.cc-light .cc-detail-title,
+.control-center-menu.cc-light .cc-back-button,
+.control-center-menu.cc-light .cc-np-btn,
+.control-center-menu.cc-light .cc-slider-right,
+.control-center-menu.cc-light .cc-slider-left StIcon,
+.control-center-menu.cc-light .cc-mini-round,
+.control-center-menu.cc-light .popup-menu-item {
+    color: #000000;
+}
+
+.control-center-menu.cc-light .cc-tile-sub,
+.control-center-menu.cc-light .cc-np-dim,
+.control-center-menu.cc-light .popup-inactive-menu-item {
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.control-center-menu.cc-light .cc-circle,
+.control-center-menu.cc-light .cc-mini-round,
+.control-center-menu.cc-light .cc-np-art {
+    background-color: rgba(0, 0, 0, 0.10);
+    color: #000000;
+}
+
+.control-center-menu.cc-light .cc-circle:hover,
+.control-center-menu.cc-light .cc-mini-round:hover {
+    background-color: rgba(0, 0, 0, 0.16);
+}
+
+.control-center-menu.cc-light .cc-circle-on,
+.control-center-menu.cc-light .cc-round-on {
+    background-color: #007aff;
+    color: #ffffff;
+}
+
+.control-center-menu.cc-light .cc-circle-on:hover,
+.control-center-menu.cc-light .cc-round-on:hover {
+    background-color: #2b8dff;
+}
+
+.control-center-menu.cc-light .cc-circle-focus.cc-circle-on {
+    background-color: #5856d6;
+    color: #ffffff;
+}
+
+.control-center-menu.cc-light .cc-circle-dim {
+    background-color: rgba(0, 0, 0, 0.04);
+    color: rgba(0, 0, 0, 0.35);
+}
+
+.control-center-menu.cc-light .cc-pill-label:hover,
+.control-center-menu.cc-light .cc-np-btn:hover,
+.control-center-menu.cc-light .cc-back-button:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.control-center-menu.cc-light .cc-thin-groove {
+    -slider-background-color: rgba(0, 0, 0, 0.16);
+    -slider-active-background-color: #ffffff;
+}
+
+/* Battery menu, light: a regular light menu. */
+.menu.control-center-menu.cc-battery-menu.cc-light {
+    background-color: rgba(246, 246, 248, 0.97);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #000000;
+}
+
+.control-center-menu.cc-light .cc-batt-title,
+.control-center-menu.cc-light .popup-inactive-menu-item.cc-batt-header-item {
+    color: #000000;
+}
+
+.control-center-menu.cc-light .cc-batt-sub,
+.control-center-menu.cc-light .cc-batt-pct,
+.control-center-menu.cc-light .cc-batt-caption {
+    color: rgba(0, 0, 0, 0.55);
 }

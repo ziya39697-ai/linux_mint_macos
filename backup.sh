@@ -62,6 +62,12 @@ cp -a "$HOME"/.config/autostart/*.desktop "$CFG/autostart/" 2>/dev/null && \
 
 mkdir -p "$CFG/gtk-3.0"
 cp -a "$HOME/.config/gtk-3.0/bookmarks" "$CFG/gtk-3.0/" 2>/dev/null && say "gtk-3.0/bookmarks"
+# The Control Center's Dark Mode tile keeps the hand-written (dark-only)
+# gtk.css as gtk.css.dark and symlinks gtk.css to it only in dark mode; keep
+# the file and remember whether the link was present.
+cp -a "$HOME/.config/gtk-3.0/gtk.css.dark" "$CFG/gtk-3.0/" 2>/dev/null && say "gtk-3.0/gtk.css.dark"
+rm -f "$CFG/gtk-3.0/gtk.css.link"
+[[ -L "$HOME/.config/gtk-3.0/gtk.css" ]] && readlink "$HOME/.config/gtk-3.0/gtk.css" > "$CFG/gtk-3.0/gtk.css.link" && say "gtk-3.0/gtk.css -> $(cat "$CFG/gtk-3.0/gtk.css.link")"
 cp -a "$HOME/.config/mimeapps.list"     "$CFG/mimeapps.list" 2>/dev/null && say "mimeapps.list"
 cp -a "$HOME/.conkyrc"                  "$CFG/conkyrc"       2>/dev/null && say "conkyrc"
 cp -a "$HOME/.gitconfig"                "$CFG/gitconfig"     2>/dev/null && say "gitconfig"

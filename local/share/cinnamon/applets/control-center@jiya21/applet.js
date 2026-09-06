@@ -281,7 +281,8 @@ class BluetoothManager {
  * (popupMenu.js:2054-2083).
  * ------------------------------------------------------------------------ */
 
-const MENU_WIDTH = 340;          /* logical px, before ui_scale */
+const MENU_WIDTH = 330;          /* logical px, before ui_scale */
+const CELL = 66;                 /* circle diameter, pill height, column width */
 
 /* A round icon button.  State is applied by an explicit style class rather
  * than a :checked pseudo-class so it does not depend on how the active theme
@@ -319,6 +320,9 @@ class TileLabelPair {
         this.actor = new St.BoxLayout({ vertical: true });
         this._title = new St.Label({ text: title, style_class: 'cc-tile-title' });
         this._sub   = new St.Label({ text: sub || '', style_class: 'cc-tile-sub' });
+        /* Apple wraps "Do Not / Disturb" rather than ellipsising it. */
+        this._title.clutter_text.line_wrap = true;
+        this._title.clutter_text.ellipsize = 3;   /* Pango.EllipsizeMode.END */
         this.actor.add(this._title);
         this.actor.add(this._sub);
     }
@@ -329,17 +333,18 @@ class TileLabelPair {
     }
 }
 
-/* One row of the connectivity tile: round toggle on the left, clickable
- * label on the right that opens the detail page. */
+/* A glass pill: round toggle on the left, title/subtitle beside it, the
+ * label area clickable to open a detail page.  Wi-Fi, Bluetooth, Warpinator. */
 class ConnRow {
     constructor(title, iconName, onToggle, onOpenDetail) {
-        this.actor = new St.BoxLayout({ style_class: 'cc-conn-row' });
+        this.actor = new St.BoxLayout({ style_class: 'cc-tile cc-pill' });
 
         this.toggle = new CircleToggle(iconName, onToggle);
         this.actor.add(this.toggle.actor, { y_align: St.Align.MIDDLE, y_fill: false });
 
         this.labels = new TileLabelPair(title, '');
-        this._btn = new St.Button({ style_class: 'cc-conn-label', can_focus: true });
+        this._btn = new St.Button({ style_class: 'cc-pill-label', can_focus: true,
+                                    x_fill: true });
         this._btn.set_child(this.labels.actor);
         this._btn.connect('clicked', onOpenDetail);
         this.actor.add(this._btn, { expand: true, x_fill: true,
@@ -350,24 +355,47 @@ class ConnRow {
     setSub(t)      { this.labels.setSub(t); }
 }
 
-/* A square grid tile that is one big toggle button (DND, Night Light). */
-class ToggleTile {
+/* A round glass button (Night Light, Dark Mode, Screen Mirroring,
+ * Screenshot).  No caption, like Apple's; the tooltip carries the name.
+ * Toggles go white with a blue glyph when on. */
+class CircleButton {
+    constructor(title, iconName, onClick) {
+        this.actor = new St.Button({ style_class: 'cc-tile cc-round', can_focus: true });
+        this._icon = new St.Icon({ icon_name: iconName,
+                                   icon_type: St.IconType.SYMBOLIC,
+                                   icon_size: 22 });
+        this.actor.set_child(this._icon);
+        this._on = false;
+        this.actor.connect('clicked', () => onClick(!this._on));
+        try { this.tooltip = new Tooltips.Tooltip(this.actor, title); } catch (e) {}
+    }
+    setChecked(on) {
+        this._on = !!on;
+        if (on) this.actor.add_style_class_name('cc-round-on');
+        else    this.actor.remove_style_class_name('cc-round-on');
+    }
+    setIcon(n) { this._icon.icon_name = n; }
+    setSub(t)  { /* circles carry no caption */ }
+}
+
+/* Sonoma's Focus tile: one wide button, round icon on the left, title and
+ * subtitle beside it.  Same state handling as ToggleTile. */
+class WideToggleTile {
     constructor(title, iconName, onToggle) {
-        this.actor = new St.Button({ style_class: 'cc-tile cc-tile-square',
-                                     can_focus: true });
-        let box = new St.BoxLayout({ vertical: true, style_class: 'cc-square-box' });
+        this.actor = new St.Button({ style_class: 'cc-tile cc-pill cc-pill-button',
+                                     can_focus: true, x_fill: true, y_fill: true });
+        let box = new St.BoxLayout({ style_class: 'cc-wide-box' });
 
         this._circle = new St.Bin({ style_class: 'cc-circle' });
         this._icon = new St.Icon({ icon_name: iconName,
                                    icon_type: St.IconType.SYMBOLIC,
                                    icon_size: 17 });
         this._circle.set_child(this._icon);
-        box.add(this._circle, { x_align: St.Align.MIDDLE, x_fill: false });
+        box.add(this._circle, { y_align: St.Align.MIDDLE, y_fill: false });
 
-        this._title = new St.Label({ text: title, style_class: 'cc-tile-title' });
-        this._sub   = new St.Label({ text: '', style_class: 'cc-tile-sub' });
-        box.add(this._title, { x_align: St.Align.MIDDLE, x_fill: false });
-        box.add(this._sub,   { x_align: St.Align.MIDDLE, x_fill: false });
+        this.labels = new TileLabelPair(title, '');
+        box.add(this.labels.actor, { expand: true, x_fill: true,
+                                     y_align: St.Align.MIDDLE, y_fill: false });
 
         this.actor.set_child(box);
         this._on = false;
@@ -380,54 +408,45 @@ class ToggleTile {
         else    this._circle.remove_style_class_name('cc-circle-on');
     }
     setIcon(n) { this._icon.icon_name = n; }
-    setSub(t)  { this._sub.text = t || ''; }
+    setSub(t)  { this.labels.setSub(t); }
 }
 
 /*
- * A fat macOS pill slider with the icon sitting inside the groove.
+ * A thin macOS slider: small icon, track, large icon, optional trailing
+ * round button (Sound's AirPlay spot).
  *
- * The stock VolumeSlider / BrightnessSlider cannot do this themselves: their
- * PopupBaseMenuItem container lays children out strictly side by side with no
- * z-stacking (popupMenu.js:348-410).  But everything those classes need after
- * construction hangs off `_slider` and `icon`, not off `actor`
- * (popupMenu.js:670-675, :779-781, :825-828), and removeActor() is a clean
- * unparent with no destroy (popupMenu.js:246-249).  So the two children are
- * lifted out and re-hosted in a BinLayout, the same overlay trick the sound
- * applet uses for cover art (sound@:557-591).
- *
- * The pill shape is free: sliderBorderRadius = min(width, sliderHeight)/2
- * (popupMenu.js:703), so a 26px -slider-height rounds to a 13px radius.
+ * The stock VolumeSlider / BrightnessSlider keep everything they need after
+ * construction on `_slider` and `icon`, not on `actor` (popupMenu.js:670-675,
+ * :779-781, :825-828), and removeActor() is a clean unparent with no destroy
+ * (popupMenu.js:246-249), so both children are lifted out and re-hosted.
+ * The stock icon stays on the left: for volume it is the click-to-mute
+ * target (sound@:110-119) and changes with the level.
  */
 class FatSlider {
-    constructor(item) {
+    constructor(item, rightIcon, trailing) {
         this.item = item;
 
         try { item.removeActor(item.icon); }    catch (e) {}
         try { item.removeActor(item._slider); } catch (e) {}
 
-        this.actor = new St.Widget({
-            style_class: 'cc-fatslider',
-            layout_manager: new Clutter.BinLayout(),
-            x_expand: true
-        });
+        this.actor = new St.BoxLayout({ style_class: 'cc-slider', x_expand: true });
         this.actor._delegate = null;
 
-        /* groove first => bottom of the z-stack */
-        item._slider.add_style_class_name('cc-fat-groove');
-        item._slider.x_expand = true;
-        item._slider.y_expand = true;
-        this.actor.add_child(item._slider);
+        this._leftBin = new St.Bin({ style_class: 'cc-slider-left', y_align: St.Align.MIDDLE });
+        this._leftBin.set_child(item.icon);
+        this.actor.add(this._leftBin, { y_align: St.Align.MIDDLE, y_fill: false });
 
-        /* St.Bin does the START/MIDDLE placement itself, so this does not rely
-         * on BinLayout honouring per-child alignment. */
-        this._iconBin = new St.Bin({ style_class: 'cc-fatslider-iconbin',
-                                     x_align: St.Align.START,
-                                     y_align: St.Align.MIDDLE });
-        /* The bin must not eat events, but the icon itself stays reactive for
-         * the volume slider — that is its click-to-mute target (sound@:110-119). */
-        this._iconBin.reactive = false;
-        this._iconBin.set_child(item.icon);
-        this.actor.add_child(this._iconBin);
+        item._slider.add_style_class_name('cc-thin-groove');
+        this.actor.add(item._slider, { expand: true, x_fill: true,
+                                       y_align: St.Align.MIDDLE, y_fill: false });
+
+        this._right = new St.Icon({ icon_name: rightIcon,
+                                    icon_type: St.IconType.SYMBOLIC,
+                                    icon_size: 18, style_class: 'cc-slider-right' });
+        this.actor.add(this._right, { y_align: St.Align.MIDDLE, y_fill: false });
+
+        if (trailing)
+            this.actor.add(trailing, { y_align: St.Align.MIDDLE, y_fill: false });
 
         /* Re-anchor the tooltip.  Bound to the now-orphaned actor it would
          * never receive motion, so mousePosition stays null and show() would
@@ -442,8 +461,7 @@ class FatSlider {
 
         /* Mirror the orphan's visibility: BrightnessSlider hides itself until
          * its D-Bus proxy answers (power@:222, :274) and VolumeSlider hides on
-         * a null stream (sound@:129).  Without this a machine with no keyboard
-         * backlight would still show the tile. */
+         * a null stream (sound@:129). */
         this._visId = item.actor.connect('notify::visible',
             () => { this.actor.visible = item.actor.visible; });
         this.actor.visible = item.actor.visible;
@@ -461,7 +479,7 @@ class FatSlider {
 /* Full-width tile: caption above a fat slider. */
 class SliderTile {
     constructor(title, fatSlider) {
-        this.actor = new St.BoxLayout({ vertical: true, style_class: 'cc-tile' });
+        this.actor = new St.BoxLayout({ vertical: true, style_class: 'cc-tile cc-slider-tile' });
         this.actor.add(new St.Label({ text: title, style_class: 'cc-tile-title' }));
         this.actor.add(fatSlider.actor, { expand: true, x_fill: true });
         this.fat = fatSlider;
@@ -469,6 +487,63 @@ class SliderTile {
         fatSlider.actor.connect('notify::visible',
             () => { this.actor.visible = fatSlider.actor.visible; });
         this.actor.visible = fatSlider.actor.visible;
+    }
+}
+
+/* The Now Playing square: art placeholder, title, transport buttons.  Driven
+ * by whichever sound@ Player is active; idle it reads "Not Playing". */
+class NowPlayingTile {
+    constructor() {
+        this.actor = new St.BoxLayout({ vertical: true, style_class: 'cc-tile cc-nowplaying' });
+        this._art = new St.Bin({ style_class: 'cc-np-art' });
+        this.actor.add(this._art, { x_align: St.Align.START, x_fill: false });
+        this._title = new St.Label({ text: _("Not Playing"), style_class: 'cc-np-title' });
+        this.actor.add(this._title, { x_fill: true });
+
+        let row = new St.BoxLayout({ style_class: 'cc-np-controls' });
+        const btn = (icon, cb) => {
+            let b = new St.Button({ style_class: 'cc-np-btn', can_focus: true });
+            b.set_child(new St.Icon({ icon_name: icon, icon_type: St.IconType.SYMBOLIC,
+                                      icon_size: 18 }));
+            b.connect('clicked', () => { try { cb(); } catch (e) { log_err("media control", e); } });
+            row.add(b, { expand: true, x_fill: false, x_align: St.Align.MIDDLE });
+            return b;
+        };
+        this._prev = btn("xsi-media-skip-backward-symbolic", () => this._call("PreviousRemote"));
+        this._play = btn("xsi-media-playback-start-symbolic", () => this._call("PlayPauseRemote"));
+        this._next = btn("xsi-media-skip-forward-symbolic",  () => this._call("NextRemote"));
+        this._play.add_style_class_name('cc-np-play');
+        this.actor.add(row, { x_fill: true });
+
+        this._player = null;
+        this._sync();
+    }
+
+    _call(method) {
+        let p = this._player && this._player._mediaServerPlayer;
+        if (p && typeof p[method] === "function") p[method]();
+    }
+
+    setPlayer(player) {
+        this._player = player || null;
+        this._sync();
+    }
+
+    /* called again by the applet whenever the player's status/metadata move */
+    _sync() {
+        let p = this._player;
+        let playing = !!(p && p._playerStatus === "Playing");
+        let active = !!(p && p._playerStatus && p._playerStatus !== "Stopped");
+        let title = (active && p._title && p._title !== _("Unknown Title")) ? p._title
+                  : (active ? _("Now Playing") : _("Not Playing"));
+        this._title.text = title;
+        this._play.child.icon_name = playing ? "xsi-media-playback-pause-symbolic"
+                                             : "xsi-media-playback-start-symbolic";
+        for (let b of [this._prev, this._play, this._next]) {
+            b.reactive = !!p;
+            if (p) b.remove_style_class_name('cc-np-dim');
+            else   b.add_style_class_name('cc-np-dim');
+        }
     }
 }
 
@@ -503,6 +578,7 @@ class PageStack {
     addMenuPage(name, titleText, onBack) {
         let sec = new PopupMenu.PopupMenuSection();
         sec.actor.add_style_class_name('cc-page');
+        sec.actor.add_style_class_name('cc-page-detail');
         sec.actor.natural_width = this._w;
 
         let hdr = new St.BoxLayout({ style_class: 'cc-detail-header' });
@@ -544,6 +620,132 @@ class PageStack {
     reset() { this.show('grid'); }
 }
 
+/* ------------------------------------------------------------------------ *
+ * Panel battery glyph, drawn the way macOS draws its menu bar battery.
+ *
+ * The icon theme's battery-level-N icons are squat (≈1.3:1) and quantised to
+ * ten steps.  macOS's is ≈2:1, the frame and nub are painted at reduced
+ * opacity in the label colour, and the solid fill inside tracks the exact
+ * percentage.  On AC a lightning bolt is knocked out of the fill; at or under
+ * LOW_PCT the fill turns systemRed; in Low Power Mode it turns systemYellow.
+ * None of that is expressible as a themed icon, so it is a St.DrawingArea.
+ *
+ * Colour comes from the theme node's foreground at repaint time, exactly as
+ * PopupMenu's dot does (popupMenu.js:264-278), so the glyph follows whatever
+ * the panel theme sets for `color` and needs no colours of its own.
+ * ------------------------------------------------------------------------ */
+const BatteryDraw = require('./lib/batteryGlyph');
+
+class MacBatteryIcon {
+    constructor(logicalSize) {
+        this.actor = new St.DrawingArea({ style_class: 'cc-battery-glyph' });
+        this._pct = 0;
+        this._onAC = false;
+        this._lowPower = false;
+        this.setSize(logicalSize);
+        this.actor.connect('repaint', (a) => this._repaint(a));
+    }
+
+    /* St.Icon takes a logical size and scales it itself; a DrawingArea is
+     * allocated in device pixels, so ui_scale is applied here. */
+    setSize(logicalSize) {
+        let h = Math.round(logicalSize * global.ui_scale);
+        this.actor.set_size(Math.round(h * BatteryDraw.BATTERY_ASPECT), h);
+        this.actor.queue_repaint();
+    }
+
+    setState(pct, onAC) {
+        this._pct = Math.max(0, Math.min(100, pct || 0));
+        this._onAC = !!onAC;
+        this.actor.queue_repaint();
+    }
+
+    setLowPower(on) {
+        if (this._lowPower === !!on) return;
+        this._lowPower = !!on;
+        this.actor.queue_repaint();
+    }
+
+    _repaint(area) {
+        let cr = area.get_context();
+        let [W, H] = area.get_surface_size();
+        let fg = area.get_theme_node().get_foreground_color();
+        BatteryDraw.drawBattery(cr, W, H,
+                                [fg.red / 255, fg.green / 255, fg.blue / 255],
+                                global.ui_scale, this._pct, this._onAC, this._lowPower);
+        cr.$dispose();
+    }
+}
+
+/* macOS battery menu header: bold "Battery" with the percentage on the right,
+ * then "Power Source: …" and a time line underneath. */
+class BatteryHeader extends PopupMenu.PopupBaseMenuItem {
+    constructor() {
+        super({ reactive: false });
+        this.actor.add_style_class_name('cc-batt-header-item');
+
+        let box = new St.BoxLayout({ vertical: true, style_class: 'cc-batt-header' });
+        let row = new St.BoxLayout({ style_class: 'cc-batt-title-row' });
+        this._title = new St.Label({ text: _("Battery"), style_class: 'cc-batt-title' });
+        this._pct   = new St.Label({ text: '', style_class: 'cc-batt-pct' });
+        row.add(this._title, { expand: true, x_fill: true });
+        row.add(this._pct, { x_align: St.Align.END });
+        this._source = new St.Label({ text: '', style_class: 'cc-batt-sub' });
+        this._time   = new St.Label({ text: '', style_class: 'cc-batt-sub' });
+        box.add(row);
+        box.add(this._source);
+        box.add(this._time);
+        this.addActor(box, { expand: true });
+    }
+
+    update(pct, state, seconds) {
+        this._pct.text = (pct === null || pct === undefined) ? '' : Math.round(pct) + "%";
+
+        let onAC = state === UPDeviceState.CHARGING ||
+                   state === UPDeviceState.FULLY_CHARGED ||
+                   state === UPDeviceState.PENDING_CHARGE;
+        this._source.text = _("Power Source: %s").format(
+            onAC ? _("Power Adapter") : _("Battery"));
+
+        let hhmm = "";
+        if (seconds > 0) {
+            let mins = Math.round(seconds / 60);
+            hhmm = "%d:%02d".format(Math.floor(mins / 60), mins % 60);
+        }
+        let t = "";
+        if (state === UPDeviceState.FULLY_CHARGED)    t = _("Fully Charged");
+        else if (state === UPDeviceState.CHARGING)    t = hhmm ? _("Time to Full: %s").format(hhmm) : _("Charging");
+        else if (state === UPDeviceState.DISCHARGING) t = hhmm ? _("Time Remaining: %s").format(hhmm) : _("Using Battery");
+        this._time.text = t;
+        this._time.visible = !!t;
+    }
+}
+
+const IFACE_SCHEMA  = "org.cinnamon.desktop.interface";
+const CTHEME_SCHEMA = "org.cinnamon.theme";
+const PORTAL_SCHEMA = "org.x.apps.portal";
+const THEME_DARK    = "WhiteSur-Dark-solid";
+const THEME_LIGHT   = "WhiteSur-Light-solid";
+
+/* new Gio.Settings() on an unknown schema aborts the whole process, so every
+ * schema this applet does not own goes through here first. */
+function settingsIfPresent(schemaId) {
+    let src = Gio.SettingsSchemaSource.get_default();
+    if (!src || !src.lookup(schemaId, true)) return null;
+    return new Gio.Settings({ schema_id: schemaId });
+}
+
+function themeInstalled(name) {
+    for (let base of [GLib.get_home_dir() + "/.themes",
+                      GLib.get_user_data_dir() + "/themes",
+                      "/usr/share/themes"]) {
+        if (GLib.file_test(base + "/" + name + "/cinnamon/cinnamon.css",
+                           GLib.FileTest.EXISTS))
+            return true;
+    }
+    return false;
+}
+
 const NIGHT_SCHEMA = "org.cinnamon.settings-daemon.plugins.color";
 const NIGHT_KEY    = "night-light-enabled";
 const DND_SCHEMA   = "org.cinnamon.desktop.notifications";
@@ -558,11 +760,24 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this.set_show_label_in_vertical_panels(false);
         this.set_applet_label("");
 
+        /* The base Applet actor is itself track_hover and gets a full-width
+         * `.applet-box:hover` highlight from the theme (cinnamon.css) — one
+         * background rectangle spanning the battery item, the gap and the
+         * glyph together.  Now that each item paints its own hover pill
+         * (cc-panel-battery-btn / cc-panel-cc-btn), that outer highlight only
+         * has to be neutralised, scoped to this applet alone via this extra
+         * class so no other applet on the panel is affected. */
+        this.actor.add_style_class_name('cc-panel-actor');
+
         this._uuid = metadata.uuid;
         this._metaPath = metadata.path;
-        this.panel_icon_name = null;
-        /* The battery slot stays empty until csd-power answers. */
+        /* The battery slot stays empty until csd-power answers.  Its child is
+         * our own Cairo glyph, never a St.Icon: set_applet_icon_* is not
+         * called anywhere, so the base class's _applet_icon stays undefined
+         * and on_panel_height_changed_internal leaves the box alone. */
         this._applet_icon_box.hide();
+        this._batteryGlyph = new MacBatteryIcon(this.getPanelIconSize(St.IconType.SYMBOLIC));
+        this._applet_icon_box.set_child(this._batteryGlyph.actor);
 
         this.settings = new Settings.AppletSettings(this, metadata.uuid, instance_id);
         this.settings.bind("labelinfo", "labelinfo", () => this._updateBatteryLabel());
@@ -573,15 +788,25 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                            () => this._updatePlayerMenuItems());
 
         this.menuManager = new PopupMenu.PopupMenuManager(this);
-        this.menu = new Applet.AppletPopupMenu(this, orientation);
-        this.menuManager.addMenu(this.menu);
-        this.menu.actor.add_style_class_name("control-center-menu");
 
         /* The macOS Control Center glyph, appended after [icon][label] so the
-         * panel reads  [battery][74%] [glyph]  (applet.js:144, :694, :827).
-         * Loaded as a GFileIcon rather than by name: same route as
-         * set_applet_icon_symbolic_path (applet.js:749-762), which sidesteps
-         * icon-theme cache timing entirely. */
+         * panel reads  [74%][battery] [glyph].  Loaded as a GFileIcon rather
+         * than by name: same route as set_applet_icon_symbolic_path
+         * (applet.js:749-762), which sidesteps icon-theme cache timing.
+         * It sits in its own bin because that bin is the Control Center
+         * menu's sourceActor (see _makeMenu). */
+        /* Two layers per item: an invisible full-height hit area (reactive,
+         * the menu's sourceActor) around the small visible pill.  A click
+         * that lands on the applet's own padding is otherwise a press the
+         * base class turns into on_applet_clicked() while the release lands
+         * outside the sourceActor, which PopupMenuManager treats as "close" —
+         * the open-then-instantly-close glitch at the corners. */
+        this._ccPill = new St.Bin({ style_class: 'cc-panel-cc-btn',
+                                    y_align: St.Align.MIDDLE });
+        this._ccBtn = new St.Bin({ reactive: true, track_hover: true,
+                                   style_class: 'cc-panel-hit cc-panel-hit-cc',
+                                   y_align: St.Align.MIDDLE });
+        this._ccBtn.set_child(this._ccPill);
         try {
             this._ccGlyph = new St.Icon({
                 style_class: 'system-status-icon cc-panel-glyph',
@@ -591,25 +816,61 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                     file: Gio.file_new_for_path(
                         this._metaPath + "/icons/cc-controls-symbolic.svg") })
             });
-            this.actor.add(this._ccGlyph, { y_align: St.Align.MIDDLE, y_fill: false });
+            this._ccPill.set_child(this._ccGlyph);
         } catch (e) {
             log_err("control center glyph", e);
         }
+        this.actor.add(this._ccBtn, { y_align: St.Align.MIDDLE, y_fill: true });
 
-        /* macOS keeps battery and Control Center as separate menu bar items.
-         * One applet, two menus, two click targets: the battery icon/label
-         * opens the battery menu, the glyph opens the Control Center. */
-        this.batteryMenu = new Applet.AppletPopupMenu(this, orientation);
-        this.menuManager.addMenu(this.batteryMenu);
-        this.batteryMenu.actor.add_style_class_name("control-center-menu");
-        this.batteryMenu.actor.add_style_class_name("cc-battery-menu");
+        /* macOS shows battery-icon and percentage-label as one menu-bar item,
+         * distinct from the Control Center glyph beside it.  Reparenting both
+         * into a single wrapper makes that literal: one reactive actor, one
+         * click target, one hover highlight, rather than two separately-wired
+         * actors that a single click could touch independently.
+         *
+         * The wrapper intercepts on 'button-press-event', not 'release': the
+         * whole-applet actor calls on_applet_clicked() (=> opens the Control
+         * Center menu) from its own 'button-press-event' handler
+         * (applet.js base class), which fires and bubbles *before* any
+         * 'button-release-event' this wrapper could hook.  Only stopping
+         * propagation on the press itself keeps a click on the battery item
+         * from also popping the Control Center menu open first. */
+        this._batteryBtn = new St.BoxLayout({ style_class: 'cc-panel-battery-btn' });
+        this._batteryHit = new St.Bin({ reactive: true, track_hover: true,
+                                        style_class: 'cc-panel-hit cc-panel-hit-battery',
+                                        y_align: St.Align.MIDDLE });
+        this._batteryHit.set_child(this._batteryBtn);
+        this.actor.remove_actor(this._applet_icon_box);
+        this.actor.remove_actor(this._layoutBin);
+        /* macOS order:  74% [battery]  — label first, glyph second. */
+        this._batteryBtn.add(this._layoutBin,
+                             { y_align: St.Align.MIDDLE, y_fill: false });
+        this._batteryBtn.add(this._applet_icon_box,
+                             { y_align: St.Align.MIDDLE, y_fill: false });
+        this.actor.insert_child_at_index(this._batteryHit, 0);
+        this.actor.child_set(this._batteryHit, { y_fill: true, y_align: St.Align.MIDDLE });
 
-        this._applet_icon_box.reactive = true;
-        this._applet_icon_box.connect('button-press-event',
-            () => { this.batteryMenu.toggle(); return Clutter.EVENT_STOP; });
-        this._layoutBin.reactive = true;
-        this._layoutBin.connect('button-press-event',
-            () => { this.batteryMenu.toggle(); return Clutter.EVENT_STOP; });
+        /* macOS keeps battery and Control Center as separate menu bar items:
+         * two menus, each anchored to its own small item.  Not
+         * Applet.AppletPopupMenu — that hard-codes the whole applet actor as
+         * sourceActor for both, and PopupMenuManager switches menus on
+         * enter-event of the *other* menu's sourceActor (popupMenu.js:3474,
+         * :3605-3620).  With one shared source, merely moving the pointer
+         * across the applet's children while the Control Center was open
+         * bubbled an enter-event to it and swapped in the battery menu. */
+        this.menu = this._makeMenu(this._ccBtn, orientation,
+                                   ["control-center-menu", "cc-main-menu"]);
+        this.batteryMenu = this._makeMenu(this._batteryHit, orientation,
+                                          ["control-center-menu", "cc-battery-menu"]);
+
+        this._ccBtn.connect('button-press-event', () => {
+            this._toggleExclusive(this.menu);
+            return Clutter.EVENT_STOP;
+        });
+        this._batteryHit.connect('button-press-event', () => {
+            this._toggleExclusive(this.batteryMenu);
+            return Clutter.EVENT_STOP;
+        });
 
         this._pages = new PageStack(this.menu, MENU_WIDTH);
 
@@ -622,13 +883,14 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._btPage   = this._pages.addMenuPage('bt', _("Bluetooth"),
                                                  () => this._pages.reset());
 
-        /* Wi-Fi and Bluetooth share one tall connectivity tile. */
-        this._connTile = new St.BoxLayout({ vertical: true, style_class: 'cc-tile' });
-
         this._tile("wifi",       () => this._initWifi());
         this._tile("bluetooth",  () => this._initBluetooth());
+        this._tile("share",      () => this._initShare());
+        this._tile("nowplaying", () => { this._nowPlaying = new NowPlayingTile(); });
         this._tile("dnd",        () => this._initDnd());
+        this._tile("darkmode",   () => this._initDarkMode());
         this._tile("nightlight", () => this._initNightLight());
+        this._tile("shortcuts",  () => this._initShortcuts());
         this._tile("sliders",    () => this._initSliders());
         this._tile("media",      () => this._initMedia());
         this._tile("battery",    () => this._initBattery());
@@ -636,9 +898,28 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._assembleGrid();
         this._pages.show('grid');
 
+        /* This runs while PopupMenuManager holds the global modal grab.  An
+         * exception escaping here would skip Main.popModal() and leave the
+         * whole desktop unclickable, so it can never be allowed to throw. */
         this.menu.connect('open-state-changed', (m, open) => {
-            if (open) this._pinPageWidths();
-            else      this._pages.reset();
+            try {
+                if (open) this._pinPageWidths();
+                else      this._pages.reset();
+            } catch (e) {
+                log_err("menu open-state-changed", e);
+            }
+            /* macOS keeps a menu-bar item highlighted for as long as its menu
+             * is open, on top of (not instead of) the hover state. */
+            if (this._ccBtn) {
+                if (open) this._ccBtn.add_style_class_name('cc-panel-btn-active');
+                else      this._ccBtn.remove_style_class_name('cc-panel-btn-active');
+            }
+        });
+        this.batteryMenu.connect('open-state-changed', (m, open) => {
+            if (this._batteryHit) {
+                if (open) this._batteryHit.add_style_class_name('cc-panel-btn-active');
+                else      this._batteryHit.remove_style_class_name('cc-panel-btn-active');
+            }
         });
 
         try {
@@ -656,6 +937,40 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         } catch (e) {
             log_err("systray replacement", e);
         }
+    }
+
+    /*
+     * One PopupMenuManager, two menus, one shared sourceActor: if both are ever
+     * open at once, the manager's _activeMenu and the menus' isOpen flags
+     * desync.  Entering the shared source then sends _onMenuSourceEnter into
+     * _changeMenu (popupMenu.js:3591-3620), which nulls _activeMenu, closes the
+     * old menu without ungrabbing, and calls open() on a menu that is already
+     * open — an early return (popupMenu.js:2329-2331) that emits no
+     * open-state-changed.  The manager is then left grabbed with no active
+     * menu: _closeMenu() is a no-op, _onEventCapture swallows every event, and
+     * popModal is never reached.  That is a desktop-wide input freeze with no
+     * recovery short of restarting Cinnamon, so the second menu must never be
+     * allowed to open while the first one is.
+     */
+    /* What Applet.AppletPopupMenu does (applet.js:79-99) minus the :checked
+     * pseudo-class on the applet box, which the stylesheet suppresses anyway
+     * — but with a caller-chosen sourceActor. */
+    _makeMenu(sourceActor, orientation, classes) {
+        let m = new PopupMenu.PopupMenu(sourceActor, orientation);
+        Main.uiGroup.add_actor(m.actor);
+        m.actor.hide();
+        for (let c of classes) m.actor.add_style_class_name(c);
+        this.menuManager.addMenu(m);
+        this.connect('orientation-changed', (a, o) => m.setOrientation(o));
+        return m;
+    }
+
+    _toggleExclusive(menu) {
+        let other = (menu === this.menu) ? this.batteryMenu : this.menu;
+        /* close() is synchronous, so the manager sees the state change and
+         * ungrabs cleanly before the other menu asks for a grab. */
+        if (other.isOpen) other.close(true);
+        menu.toggle();
     }
 
     _pinPageWidths() {
@@ -704,23 +1019,41 @@ class ControlCenterApplet extends Applet.TextIconApplet {
      */
     _assembleGrid() {
         let g = this._grid;
+        const cell = (actor, row, col, span, canHide) => {
+            g.add(actor, { row: row, col: col, col_span: span || 1,
+                           x_expand: true, y_expand: false,
+                           x_fill: true, y_fill: true });
+            if (canHide) g.child_set(actor, { allocate_hidden: false });
+        };
 
-        g.add(this._connTile, { row: 0, col: 0, row_span: 2,
-                                x_expand: true, y_expand: false,
-                                x_fill: true, y_fill: true });
+        /* Left column: three pills.  Right column: the Now Playing square
+         * over two round buttons.  Then two rounds and the Do Not Disturb
+         * pill, then the sliders — Apple's Control Center, tile for tile. */
+        let row = 0;
+        for (let r of [this._wifiRow, this._btRow, this._shareRow]) {
+            if (!r) continue;
+            cell(r.actor, row++, 0, 2, true);
+        }
+        if (this._nowPlaying) {
+            g.add(this._nowPlaying.actor, { row: 0, col: 2, col_span: 2, row_span: 2,
+                                            x_expand: true, y_expand: false,
+                                            x_fill: true, y_fill: true });
+        }
+        let col = 2;
+        for (let b of [this._nightTile, this._darkTile]) {
+            if (!b) continue;
+            cell(b.actor, 2, col++, 1, false);
+        }
+        row = 3; col = 0;
+        for (let b of [this._mirrorBtn, this._shotBtn]) {
+            if (!b) continue;
+            cell(b.actor, row, col++, 1, false);
+        }
+        if (this._dndTile) cell(this._dndTile.actor, row, 2, 2, false);
+        row++;
 
-        if (this._dndTile)
-            g.add(this._dndTile.actor, { row: 0, col: 1,
-                                         x_expand: false, y_expand: false,
-                                         x_fill: true, y_fill: true });
-        if (this._nightTile)
-            g.add(this._nightTile.actor, { row: 0, col: 2,
-                                           x_expand: false, y_expand: false,
-                                           x_fill: true, y_fill: true });
-
-        let row = 2;
         const wide = (actor, canHide) => {
-            g.add(actor, { row: row, col: 0, col_span: 3,
+            g.add(actor, { row: row, col: 0, col_span: 4,
                            x_expand: true, y_expand: false,
                            x_fill: true, y_fill: false });
             if (canHide) g.child_set(actor, { allocate_hidden: false });
@@ -732,6 +1065,30 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         if (this._soundTile)  wide(this._soundTile.actor, true);
         if (this._slidersFailed) wide(this._failTile(_("Sliders unavailable")), false);
         if (this._mediaTile)  wide(this._mediaTile, true);
+    }
+
+    /* Warpinator is Mint's AirDrop; Screen Mirroring and Screenshot are the
+     * two round shortcuts on Apple's bottom row. */
+    _initShare() {
+        let cmd = firstProgram(["warpinator"]);
+        if (!cmd) return;
+        const launch = () => { this.menu.close(); Util.spawnCommandLine(cmd); };
+        this._shareRow = new ConnRow(_("Warpinator"), "xsi-share-symbolic", launch, launch);
+        this._shareRow.setChecked(true);
+        this._shareRow.setSub(_("Everyone"));
+    }
+
+    _initShortcuts() {
+        let display = firstProgram(["cinnamon-settings display"]);
+        if (display) {
+            this._mirrorBtn = new CircleButton(_("Screen Mirroring"), "xsi-view-mirror-symbolic",
+                () => { this.menu.close(); Util.spawnCommandLine(display); });
+        }
+        let shot = firstProgram(["gnome-screenshot -i", "flameshot gui"]);
+        if (shot) {
+            this._shotBtn = new CircleButton(_("Screenshot"), "xsi-screenshooter-symbolic",
+                () => { this.menu.close(); Util.spawnCommandLine(shot); });
+        }
     }
 
     /* -------------------------------------------------------------- Wi-Fi */
@@ -754,7 +1111,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             "xsi-network-wireless-signal-excellent-symbolic",
             (want) => this._setWifiEnabled(want),
             () => this._pages.show('wifi'));
-        this._connTile.add(this._wifiRow.actor, { x_fill: true });
 
         /* --- detail page --- */
         this._wifiSwitch = new NetLib.NMWirelessSectionTitleMenuItem(
@@ -780,9 +1136,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
         let netCmd = firstProgram(["cinnamon-settings network"]);
         if (netCmd) {
-            let item = new PopupMenu.PopupIconMenuItem(
-                _("Network Settings…"), "preferences-system-network",
-                St.IconType.SYMBOLIC);
+            let item = new PopupMenu.PopupMenuItem(_("Wi-Fi Settings…"));
             item.connect("activate", () => {
                 this.menu.close();
                 Util.spawnCommandLine(netCmd);
@@ -896,7 +1250,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._btRow = new ConnRow(_("Bluetooth"), "xsi-bluetooth-symbolic",
             (want) => this._bt.setPowered(want),
             () => this._pages.show('bt'));
-        this._connTile.add(this._btRow.actor, { x_fill: true });
 
         this._btSwitch = new PopupMenu.PopupSwitchMenuItem(_("Bluetooth"), false,
             { style_class: "popup-subtitle-menu-item" });
@@ -911,9 +1264,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             : firstProgram(["blueberry", "blueman-manager",
                             "gnome-control-center bluetooth"]);
         if (btCmd) {
-            let item = new PopupMenu.PopupIconMenuItem(
-                _("Bluetooth Settings…"), "xsi-bluetooth-symbolic",
-                St.IconType.SYMBOLIC);
+            let item = new PopupMenu.PopupMenuItem(_("Bluetooth Settings…"));
             item.connect("activate", () => {
                 this.menu.close();
                 Util.spawnCommandLine(btCmd);
@@ -953,19 +1304,44 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             ? connected.map((d) => d.alias).join(", ")
             : _("On"));
 
-        for (let dev of this._bt.devices) {
-            let label = dev.alias;
-            if (dev.battery !== null && dev.battery !== undefined)
-                label += " — " + Math.round(dev.battery) + "%";
+        if (this._bt.devices.length) {
+            let cap = new PopupMenu.PopupMenuItem(_("My Devices"),
+                { reactive: false, style_class: 'cc-batt-caption' });
+            this._btDeviceSection.addMenuItem(cap);
+            this._btRows.push(cap);
+        }
 
-            let row = new PopupMenu.PopupSwitchIconMenuItem(
-                label, dev.connected, this._btIconFor(dev.icon),
-                St.IconType.SYMBOLIC);
-            row.setStatus(dev.connected ? _("Connected") : null);
+        /* macOS rows: round device glyph (white/blue while connected), name,
+         * status on the right; the whole row toggles the connection. */
+        for (let dev of this._bt.devices) {
+            let row = new PopupMenu.PopupBaseMenuItem();
+            row.actor.add_style_class_name('cc-net-row');
+
+            let circle = new St.Bin({ style_class: 'cc-circle cc-list-circle' });
+            circle.set_child(new St.Icon({ icon_name: this._btIconFor(dev.icon),
+                                           icon_type: St.IconType.SYMBOLIC, icon_size: 15 }));
+            if (dev.connected) circle.add_style_class_name('cc-circle-on');
+
+            let status = "";
+            if (this._bt.isPending(dev.path))      status = _("Connecting…");
+            else if (dev.connected) {
+                status = _("Connected");
+                if (dev.battery !== null && dev.battery !== undefined)
+                    status += " · " + Math.round(dev.battery) + "%";
+            }
+            /* one actor per row — see _skinWifiItem for why */
+            let box = new St.BoxLayout({ style_class: 'cc-net-box' });
+            box.add(circle, { y_align: St.Align.MIDDLE, y_fill: false });
+            box.add(new St.Label({ text: dev.alias }),
+                    { expand: true, x_fill: true, y_align: St.Align.MIDDLE, y_fill: false });
+            box.add(new St.Label({ text: status, style_class: 'cc-net-status' }),
+                    { y_align: St.Align.MIDDLE, y_fill: false });
+            row.addActor(box, { expand: true, span: -1 });
+
             if (this._bt.isPending(dev.path)) row.setSensitive(false);
-            row.connect("toggled", (item, state) => {
-                item.setSensitive(false);
-                this._bt.setDeviceConnected(dev.path, state);
+            row.connect("activate", () => {
+                row.setSensitive(false);
+                this._bt.setDeviceConnected(dev.path, !dev.connected);
             });
             this._btDeviceSection.addMenuItem(row);
             this._btRows.push(row);
@@ -976,10 +1352,12 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
     _initDnd() {
         this._dndSettings = new Gio.Settings({ schema_id: DND_SCHEMA });
-        this._dndTile = new ToggleTile(_("Do Not Disturb"),
-            "xsi-notifications-disabled-symbolic",
+        /* Apple's pill: white circle with an indigo moon while it is on. */
+        this._dndTile = new WideToggleTile(_("Do Not Disturb"),
+            "xsi-weather-clear-night-symbolic",
             /* Inverted: DND on means notifications off. */
             (wantDnd) => this._dndSettings.set_boolean(DND_KEY, !wantDnd));
+        this._dndTile._circle.add_style_class_name('cc-circle-focus');
         this._dndId = this._dndSettings.connect("changed::" + DND_KEY,
                                                 () => this._syncDnd());
         this._syncDnd();
@@ -988,14 +1366,76 @@ class ControlCenterApplet extends Applet.TextIconApplet {
     _syncDnd() {
         let dnd = !this._dndSettings.get_boolean(DND_KEY);
         this._dndTile.setChecked(dnd);
-        this._dndTile.setIcon(dnd ? "xsi-notifications-disabled-symbolic"
-                                  : "xsi-notifications-symbolic");
+        this._dndTile.setIcon("xsi-weather-clear-night-symbolic");
         this._dndTile.setSub(dnd ? _("On") : _("Off"));
+    }
+
+    /* ------------------------------------------------------- Dark Mode */
+
+    /* macOS keeps Dark Mode under Control Center > Display.  Here it flips
+     * the WhiteSur pair for GTK and Cinnamon, tells portal/libadwaita apps
+     * via org.x.apps.portal, swaps the user's dark-only gtk.css, and
+     * restyles this applet's own menus (cc-light). */
+    _initDarkMode() {
+        this._ifaceSettings = new Gio.Settings({ schema_id: IFACE_SCHEMA });
+        this._darkTile = new CircleButton(_("Dark Mode"), "xsi-appearance-symbolic",
+                                          (want) => this._setDarkMode(want));
+        this._darkId = this._ifaceSettings.connect("changed::gtk-theme",
+                                                   () => this._syncDarkMode());
+        this._syncDarkMode();
+    }
+
+    _isDarkMode() {
+        return this._ifaceSettings.get_string("gtk-theme").indexOf("-Dark") !== -1;
+    }
+
+    _syncDarkMode() {
+        let dark = this._isDarkMode();
+        this._darkTile.setChecked(dark);
+        this._darkTile.setSub(dark ? _("On") : _("Off"));
+        for (let m of [this.menu, this.batteryMenu]) {
+            if (!m) continue;
+            if (dark) m.actor.remove_style_class_name('cc-light');
+            else      m.actor.add_style_class_name('cc-light');
+        }
+    }
+
+    _setDarkMode(want) {
+        let theme = want ? THEME_DARK : THEME_LIGHT;
+        if (!themeInstalled(theme)) {
+            log_err("dark mode", new Error(theme + " is not installed"));
+            return;
+        }
+        this._ifaceSettings.set_string("gtk-theme", theme);
+        let ctheme = settingsIfPresent(CTHEME_SCHEMA);
+        if (ctheme) ctheme.set_string("name", theme);
+        let portal = settingsIfPresent(PORTAL_SCHEMA);
+        if (portal) portal.set_string("color-scheme", want ? "prefer-dark" : "default");
+        this._swapGtkCss(want);
+    }
+
+    /* ~/.config/gtk-3.0/gtk.css is a hand-written dark-only restyle.  It is
+     * kept as gtk.css.dark and gtk.css is a symlink to it only in dark mode.
+     * A real (non-symlink) gtk.css is never touched. */
+    _swapGtkCss(dark) {
+        try {
+            let dir = GLib.get_user_config_dir() + "/gtk-3.0";
+            if (!GLib.file_test(dir + "/gtk.css.dark", GLib.FileTest.EXISTS)) return;
+            let link = Gio.file_new_for_path(dir + "/gtk.css");
+            let exists = GLib.file_test(dir + "/gtk.css", GLib.FileTest.EXISTS) ||
+                         GLib.file_test(dir + "/gtk.css", GLib.FileTest.IS_SYMLINK);
+            if (exists && !GLib.file_test(dir + "/gtk.css", GLib.FileTest.IS_SYMLINK))
+                return;
+            if (dark && !exists)       link.make_symbolic_link("gtk.css.dark", null);
+            else if (!dark && exists)  link.delete(null);
+        } catch (e) {
+            log_err("swapping gtk.css", e);
+        }
     }
 
     _initNightLight() {
         this._nightSettings = new Gio.Settings({ schema_id: NIGHT_SCHEMA });
-        this._nightTile = new ToggleTile(_("Night Light"),
+        this._nightTile = new CircleButton(_("Night Light"),
             "xsi-night-light-symbolic",
             (want) => this._nightSettings.set_boolean(NIGHT_KEY, want));
         this._nightId = this._nightSettings.connect("changed::" + NIGHT_KEY,
@@ -1024,7 +1464,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                 this, _("Brightness"), "xsi-display-brightness",
                 "org.cinnamon.SettingsDaemon.Power.Screen", 0);
             this._brightTile = new SliderTile(_("Display"),
-                                              new FatSlider(this._brightness));
+                new FatSlider(this._brightness, "xsi-display-brightness-symbolic"));
 
             /* csd-power answers GetPercentage with 0 and no error even on a
              * machine with no keyboard backlight, so BrightnessSlider shows
@@ -1035,7 +1475,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                     this, _("Keyboard backlight"), "xsi-keyboard-brightness",
                     "org.cinnamon.SettingsDaemon.Power.Keyboard", 0);
                 this._kbdTile = new SliderTile(_("Keyboard"),
-                                               new FatSlider(this._keyboardBacklight));
+                    new FatSlider(this._keyboardBacklight, "xsi-keyboard-brightness-symbolic"));
             }
         }
 
@@ -1058,7 +1498,18 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
 
         this._outputSlider = new SoundLib.VolumeSlider(this, null, _("Volume"), null);
-        this._soundTile = new SliderTile(_("Sound"), new FatSlider(this._outputSlider));
+        /* Apple's AirPlay spot: a small round button opening sound settings. */
+        let out = null;
+        let soundCmd = firstProgram(["cinnamon-settings sound"]);
+        if (soundCmd) {
+            out = new St.Button({ style_class: 'cc-mini-round', can_focus: true });
+            out.set_child(new St.Icon({ icon_name: "xsi-audio-speakers-symbolic",
+                                        icon_type: St.IconType.SYMBOLIC, icon_size: 14 }));
+            out.connect('clicked', () => { this.menu.close(); Util.spawnCommandLine(soundCmd); });
+            try { new Tooltips.Tooltip(out, _("Sound Settings")); } catch (e) {}
+        }
+        this._soundTile = new SliderTile(_("Sound"),
+            new FatSlider(this._outputSlider, "xsi-audio-volume-high-symbolic", out));
 
         /* Per-application streams sit under the main slider inside the tile. */
         this._appStreamSection = new PopupMenu.PopupMenuSection();
@@ -1120,6 +1571,13 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         if (!this._mediaTile) return;
         let any = Object.keys(this._players || {}).length > 0;
         this._mediaTile.visible = any && this.showMediaPlayer;
+        this._syncNowPlaying();
+    }
+
+    _syncNowPlaying() {
+        if (!this._nowPlaying) return;
+        let p = (this._activePlayer && this._players) ? this._players[this._activePlayer] : null;
+        this._nowPlaying.setPlayer(p || null);
     }
 
     get extendedPlayerControl() { return false; }
@@ -1128,8 +1586,12 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
     _initBattery() {
         this._deviceItems = [];
-        this._primaryIcon = null;
 
+        this._batteryHeader = new BatteryHeader();
+        this.batteryMenu.addMenuItem(this._batteryHeader);
+
+        /* Any battery-backed device other than the primary one: mouse,
+         * keyboard, headphones. */
         this._batterySection = new PopupMenu.PopupMenuSection();
         this.batteryMenu.addMenuItem(this._batterySection);
 
@@ -1140,9 +1602,8 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         let powerCmd = firstProgram(["cinnamon-settings power"]);
         if (powerCmd) {
             this.batteryMenu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-            let item = new PopupMenu.PopupIconMenuItem(
-                _("Battery Settings…"), "xsi-battery-level-100-symbolic",
-                St.IconType.SYMBOLIC);
+            /* Plain text, no icon — macOS menu rows carry none. */
+            let item = new PopupMenu.PopupMenuItem(_("Battery Settings…"));
             item.connect("activate", () => {
                 this.batteryMenu.close();
                 Util.spawnCommandLine(powerCmd);
@@ -1174,9 +1635,12 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
             this._primaryPercentage = null;
             this._primaryTime = null;
-            this._primaryIcon = null;
+            this._primaryState = null;
 
-            if (error) return;
+            if (error) {
+                this._syncPanelBattery();
+                return;
+            }
 
             let devices = result[0] || [];
             for (let device of devices) {
@@ -1185,6 +1649,15 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
                 if (device_kind === UPDeviceKind.LINE_POWER) continue;
                 if (state === UPDeviceState.UNKNOWN) continue;
+
+                /* The primary battery is the menu header, not a row. */
+                if (device_kind === UPDeviceKind.BATTERY &&
+                    this._primaryPercentage === null) {
+                    this._primaryPercentage = percentage;
+                    this._primaryTime = seconds;
+                    this._primaryState = state;
+                    continue;
+                }
 
                 let status = this._getDeviceStatus(state, seconds);
 
@@ -1197,17 +1670,10 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                 }
                 this._batterySection.addMenuItem(item);
                 this._deviceItems.push(item);
-
-                if (device_kind === UPDeviceKind.BATTERY &&
-                    this._primaryPercentage === null) {
-                    this._primaryPercentage = percentage;
-                    this._primaryTime = seconds;
-                    this._primaryIcon = icon;
-                }
             }
 
             this._updateBatteryLabel();
-            this._setPanelBatteryIcon(this._primaryIcon);
+            this._syncPanelBattery();
         });
     }
 
@@ -1247,23 +1713,19 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
         if (!profiles || !profiles.length) return;
 
-        const ICONS = {
-            "power-saver": "xsi-power-profile-power-saver-symbolic",
-            "balanced":    "xsi-power-profile-balanced-symbolic",
-            "performance": "xsi-power-profile-performance-symbolic"
-        };
         const NAMES = (PowerLib && PowerLib.POWER_PROFILES) ? PowerLib.POWER_PROFILES : {};
 
         this._profileSection.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        /* macOS labels this group "Energy Mode"; rows are plain text with a
+         * check mark, so no icons here either. */
+        this._profileSection.addMenuItem(new PopupMenu.PopupMenuItem(
+            _("Energy Mode"), { reactive: false, style_class: 'cc-batt-caption' }));
         this._profileItems = {};
 
         for (let entry of profiles) {
             let name = unwrap(entry["Profile"]);
             if (!name) continue;
-            let item = new PopupMenu.PopupIconMenuItem(
-                NAMES[name] || name,
-                ICONS[name] || "xsi-power-profile-balanced-symbolic",
-                St.IconType.SYMBOLIC);
+            let item = new PopupMenu.PopupMenuItem(NAMES[name] || name);
             item.connect("activate", () => {
                 try {
                     this._profilesProxy.ActiveProfile = name;
@@ -1287,43 +1749,45 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
         for (let name in this._profileItems)
             this._profileItems[name].setShowDot(name === active);
+        /* macOS paints the fill yellow in Low Power Mode. */
+        if (this._batteryGlyph)
+            this._batteryGlyph.setLowPower(active === "power-saver");
     }
 
-    /*
-     * Transcribed from power@:604-618.  The order is load-bearing:
-     * set_applet_icon_symbolic_name() forces St.IconType.SYMBOLIC and the
-     * correct panel icon size via _setStyle(), and only then is the gicon
-     * overwritten with the themed-icon string UPower supplied (currently
-     * "xsi-battery-level-70-symbolic ...").  Assigning .gicon alone does not
-     * re-run _setStyle().
-     */
-    _setPanelBatteryIcon(icon) {
-        if (!icon) {
+    _isOnAC(state) {
+        return state === UPDeviceState.CHARGING ||
+               state === UPDeviceState.FULLY_CHARGED ||
+               state === UPDeviceState.PENDING_CHARGE;
+    }
+
+    /* Push the primary battery's state into the panel glyph and the menu
+     * header.  No battery at all (a desktop): hide the slot entirely. */
+    _syncPanelBattery() {
+        let pct = this._primaryPercentage;
+        if (pct === null || pct === undefined) {
             this._applet_icon_box.hide();
-            this.panel_icon_name = null;
             return;
         }
         this._applet_icon_box.show();
-        if (this.panel_icon_name !== icon) {
-            this.panel_icon_name = icon;
-            this.set_applet_icon_symbolic_name('xsi-battery-level-100');
-            this._applet_icon.gicon = Gio.icon_new_for_string(icon);
-        }
+        this._batteryGlyph.setState(pct, this._isOnAC(this._primaryState));
+        if (this._batteryHeader)
+            this._batteryHeader.update(pct, this._primaryState, this._primaryTime);
     }
 
     /* ---------------------------------------------------------- Applet */
 
-    /* _setStyle() resizes _applet_icon but knows nothing about our glyph, and
-     * it can clobber the battery gicon, so both are re-applied here. */
+    /* Neither the glyph nor the DrawingArea is a base-class _applet_icon, so
+     * the base class will not resize them; do it here. */
     on_panel_height_changed() {
-        if (this._ccGlyph)
-            this._ccGlyph.icon_size = this.getPanelIconSize(St.IconType.SYMBOLIC);
-        if (this.panel_icon_name && this._applet_icon)
-            this._applet_icon.gicon = Gio.icon_new_for_string(this.panel_icon_name);
+        let size = this.getPanelIconSize(St.IconType.SYMBOLIC);
+        if (this._ccGlyph) this._ccGlyph.icon_size = size;
+        if (this._batteryGlyph) this._batteryGlyph.setSize(size);
     }
 
+    /* Both items own their clicks (hit areas above).  A press that still
+     * reaches here landed on the applet's edge padding; opening a menu from
+     * it would just be closed again by the release, so do nothing. */
     on_applet_clicked(event) {
-        this.menu.toggle();
     }
 
     on_applet_removed_from_panel() {
@@ -1365,6 +1829,9 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
         if (this._nightSettings && this._nightId) {
             try { this._nightSettings.disconnect(this._nightId); } catch (e) {}
+        }
+        if (this._ifaceSettings && this._darkId) {
+            try { this._ifaceSettings.disconnect(this._darkId); } catch (e) {}
         }
 
         if (this._dbus && this._ownerChangedId) {
@@ -1443,6 +1910,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         let wrapper = new NetLib.NMDeviceWireless(this._nmClient, device, this._connections);
         wrapper._ccStateChangedId =
             wrapper.connect("state-changed", () => this._syncWifiTitle());
+        this._skinWifiSection(wrapper.section);
 
         this._wifiSection.addMenuItem(wrapper.statusItem);
         this._wifiSection.addMenuItem(wrapper.section);
@@ -1450,6 +1918,76 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
         this._syncWifiTitle();
     }
+    /*
+     * macOS rows: a round glyph on the left (white/blue for the connected
+     * network, glass otherwise), the SSID, the signal icon on the right.
+     *
+     * The stock NMDeviceWireless keeps all the NetworkManager logic — AP
+     * grouping, saved connections, 802.1x hand-off to cinnamon-settings
+     * (network@:1717-1737) — so its NMNetworkMenuItems are re-skinned in
+     * place rather than replaced.  Every row enters through
+     * section.addMenuItem (network@:1741, and the "More" submenu), which is
+     * wrapped here; the stock marks the active network with setShowDot()
+     * (network@:1184 and friends), which is redirected to the circle and
+     * made exclusive, so two networks can never both look selected.
+     */
+    _skinWifiSection(section) {
+        if (!section || section._ccSkinned) return;
+        section._ccSkinned = true;
+        let orig = section.addMenuItem.bind(section);
+        section.addMenuItem = (item, position) => {
+            orig(item, position);
+            this._skinWifiItem(item, section);
+        };
+        for (let it of section._getMenuItems()) this._skinWifiItem(it, section);
+    }
+
+    _skinWifiItem(item, section) {
+        if (!item || item._ccSkinned) return;
+        if (item.menu && typeof item.menu.addMenuItem === "function") {
+            /* the "More" overflow submenu */
+            item._ccSkinned = true;
+            this._skinWifiSection(item.menu);
+            return;
+        }
+        if (!item._labelStrength || !item._icons) return;   /* not a network row */
+        item._ccSkinned = true;
+
+        item.actor.add_style_class_name('cc-net-row');
+
+        /* PopupMenu syncs column widths across every item in the menu
+         * (popupMenu.js:2628-2635), so a row built from several addActor()
+         * columns lines its label up with the title/settings rows instead of
+         * its own circle.  Rebuild the row as ONE actor spanning all columns. */
+        for (let child of [item._label, item._labelStrength, item._icons]) {
+            try { item.removeActor(child); } catch (e) {}
+        }
+        let circle = new St.Bin({ style_class: 'cc-circle cc-list-circle' });
+        circle.set_child(new St.Icon({ icon_name: 'xsi-network-wireless-signal-excellent-symbolic',
+                                       icon_type: St.IconType.SYMBOLIC, icon_size: 15 }));
+        let box = new St.BoxLayout({ style_class: 'cc-net-box' });
+        box.add(circle, { y_align: St.Align.MIDDLE, y_fill: false });
+        box.add(item._label, { expand: true, x_fill: true, y_align: St.Align.MIDDLE, y_fill: false });
+        box.add(item._icons, { y_align: St.Align.MIDDLE, y_fill: false });
+        item.addActor(box, { expand: true, span: -1 });
+        item._ccCircle = circle;
+
+        const clearOthers = () => {
+            for (let o of section._getMenuItems())
+                if (o !== item && o._ccCircle) o._ccCircle.remove_style_class_name('cc-circle-on');
+        };
+        item.setShowDot = (show) => {
+            if (show) { clearOthers(); circle.add_style_class_name('cc-circle-on'); }
+            else      circle.remove_style_class_name('cc-circle-on');
+        };
+        /* the stock may have marked it before it was added to the section */
+        if (item._dot) {
+            try { item._dot.destroy(); } catch (e) {}
+            item._dot = null;
+            item.setShowDot(true);
+        }
+    }
+
     _deviceRemoved(client, device) {
         if (!device._delegate)
             return;
@@ -1589,6 +2127,17 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             return;
         }
         player.busNames = [busName];
+        /* sound@'s Player has no change signal; wrap the two setters that
+         * every status/metadata update funnels through (sound@:820, :756). */
+        for (let fn of ["_setStatus", "_setMetadata"]) {
+            if (typeof player[fn] !== "function") continue;
+            let orig = player[fn];
+            player[fn] = (...args) => {
+                let r = orig.apply(player, args);
+                try { this._syncNowPlaying(); } catch (e) {}
+                return r;
+            };
+        }
         this._players[owner] = player;
         this._playerSection.addMenuItem(player);
         this._activePlayer = owner;
@@ -1688,7 +2237,8 @@ class ControlCenterApplet extends Applet.TextIconApplet {
     }
     _setKeybinding() {
         Main.keybindingManager.addHotKey("control-center-open-" + this.instance_id,
-                                         this.keyOpen, () => this.menu.toggle());
+                                         this.keyOpen,
+                                         () => this._toggleExclusive(this.menu));
     }
 }
 
