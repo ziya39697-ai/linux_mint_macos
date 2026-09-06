@@ -11,9 +11,9 @@ LineWidth=1
 #Faint light rim, like the macOS dock edge.
 OuterStrokeColor=255;;255;;255;;48
 #Translucent dark frost, slightly lighter at the top.
-FillStartColor=58;;58;;66;;168
+FillStartColor=58;;58;;66;;70
 #The ending color (RGBA) of the fill gradient.
-FillEndColor=32;;32;;38;;198
+FillEndColor=32;;32;;38;;95
 #The color (RGBA) of the inner stroke.
 InnerStrokeColor=255;;255;;255;;20
 
@@ -27,9 +27,9 @@ BottomPadding=3
 #The padding between items on the dock, in tenths of a percent of IconSize.
 ItemPadding=3
 #The color (RGBA) of the indicator.
-IndicatorColor=255;;255;;255;;255
+IndicatorColor=255;;255;;255;;150
 #The size of item indicators, in tenths of a percent of IconSize.
-IndicatorSize=5
+IndicatorSize=3
 #'circle' = the small dot macOS puts under a running app.
 IndicatorStyle=2
 #The size of the icon-shadow behind every item, in tenths of a percent of IconSize.

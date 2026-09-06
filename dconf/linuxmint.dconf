@@ -5,7 +5,7 @@ installed-apps=['apt:bpfcc-tools', 'apt:bpftrace', 'apt:broadcom-sta-dkms', 'apt
 [updates]
 default-repo-is-ok=true
 install-last-run=1786772731
-refresh-last-run=1788599609
+refresh-last-run=1788678619
 show-welcome-page=false
 window-height=570
 window-pane-position=344

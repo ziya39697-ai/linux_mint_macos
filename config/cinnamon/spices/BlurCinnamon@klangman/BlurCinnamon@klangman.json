@@ -363,7 +363,7 @@
         "description": "Application windows (Please read tooltip)",
         "tooltip": "Allow application window background effects by adding an effect actor below all existing graphical elements of affected windows. This means the effects will NOT be visible unless the application is setup to be transparent or the \"Opacity\" setting for the window is less than 100%. The table under the \"Windows\" component settings is used to determine which applications (if any) will have effects applied to its windows, enabling this option alone will not add effects to any windows.",
         "default": false,
-        "value": false
+        "value": true
     },
     "enable-desklet-effects": {
         "type": "switch",
@@ -1766,6 +1766,19 @@
         "value": [
             {
                 "enabled": false,
+                "application": "Default window settings",
+                "override": false,
+                "opacity": 0,
+                "color": "rgb(0,0,0)",
+                "blurtype": 2,
+                "radius": 10,
+                "saturation": 100,
+                "corner_radius": 8,
+                "corner_top": true,
+                "corner_bottom": false
+            },
+            {
+                "enabled": false,
                 "application": "Alacritty.desktop",
                 "override": false,
                 "opacity": 0,
@@ -1854,6 +1867,20 @@
                 "corner_radius": 10,
                 "corner_top": true,
                 "corner_bottom": false
+            },
+            {
+                "enabled": true,
+                "application": "plank",
+                "override": true,
+                "window_opacity": 100,
+                "opacity": 30,
+                "color": "rgb(0,0,0)",
+                "blurtype": 7,
+                "radius": 16,
+                "saturation": 110,
+                "corner_radius": 16,
+                "corner_top": true,
+                "corner_bottom": true
             }
         ]
     },

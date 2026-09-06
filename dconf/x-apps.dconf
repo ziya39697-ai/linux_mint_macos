@@ -25,7 +25,7 @@ catalogs-2-10=true
 active-extensions=['23hq', 'bookmarks', 'burn_disc', 'catalogs', 'change_date', 'comments', 'contact_sheet', 'convert_format', 'desktop_background', 'edit_metadata', 'exiv2_tools', 'file_manager', 'find_duplicates', 'flicker', 'gstreamer_tools', 'gstreamer_utils', 'image_print', 'image_rotation', 'importer', 'jpeg_utils', 'list_tools', 'oauth', 'photo_importer', 'raw_files', 'red_eye_removal', 'rename_series', 'resize_images', 'search', 'selections', 'slideshow', 'terminal', 'webalbums']
 
 [reader/default]
-window-ratio=(1.0084033613445378, 0.71258907363420432)
+window-ratio=(2.3529411764705883, 1.0707070707070707)
 
 [sticky]
 active-group='Focus on these:\n\n✅ Creating and formatting spreadsheets\n✅ Sorting and filtering\n✅ Basic formulas — SUM, AVERAGE, COUNT, COUNTA\n✅ Dropdowns / data validation\n✅ Conditional formatting\n✅ Finding and removing duplicates\n✅ Basic tables for candidate tracking\n⭐ IF formula — useful to learn\n⭐ Basic VLOOKUP/XLOOKUP — learn later'
