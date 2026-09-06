@@ -27,11 +27,11 @@ BottomPadding=3
 #The padding between items on the dock, in tenths of a percent of IconSize.
 ItemPadding=3
 #The color (RGBA) of the indicator.
-IndicatorColor=255;;255;;255;;150
+IndicatorColor=255;;255;;255;;255
 #The size of item indicators, in tenths of a percent of IconSize.
-IndicatorSize=3
-#'circle' = the small dot macOS puts under a running app.
-IndicatorStyle=2
+IndicatorSize=5
+#Soft glow under running apps - subtler than a solid dot.
+IndicatorStyle=0
 #The size of the icon-shadow behind every item, in tenths of a percent of IconSize.
 IconShadowSize=1
 #The height (in percent of IconSize) to bounce an icon when the application sets urgent.

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-06T16:54:20+0530",
+  "generated": "2026-09-06T16:55:42+0530",
   "hostname": "jiya21-MacBookAir",
   "user": "jiya21",
   "distro": "Linux Mint 22.3",
@@ -83,7 +83,7 @@
     "local/share/cinnamon/extensions/BlurCinnamon@klangman/po/ru.po": "2e0e00747186087a9246aa978e47cf5fc1167de2c89dc6b808452a24f11f0326",
     "local/share/cinnamon/extensions/BlurCinnamon@klangman/po/vi.po": "7ad5f200c1affc9525f9dda2b228b807289b2f6e4e1dd65ba21061a855da6f24",
     "local/share/cinnamon/extensions/BlurCinnamon@klangman/po/zh_TW.po": "a47c01b4bf1af688ec51a00315117cbca273a5cadb08239e624db30e4b59ec75",
-    "local/share/plank/themes/macOS/dock.theme": "b98a4feac3bb035b990ca9e1de745e39158157c551336699c0599e2eb19c1e0d",
+    "local/share/plank/themes/macOS/dock.theme": "4dec6dea4a5f8958a3df9f94494dd8f8b234ed2cd805eaa5e4c47cdbd80330de",
     "packages/added-since-install.txt": "479eee5d5f03e58c78d34196fa8442b0b4efa259014693d46f14c9b6f7a6a259",
     "packages/intentional.txt": "3d0bafd07aca2827c0f8fb7dd64e3cb99a8071865a3eb4464f6727560503eb50",
     "packages/manual-full.txt": "9de72b9cefca3b70067e4a52d5ac4e49d56daa8a01eea0e90c60b532874b5438",
