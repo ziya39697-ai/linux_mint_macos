@@ -350,6 +350,7 @@ libvo-amrwbenc0
 libvoikko1
 libwildmidi2
 libxcb-composite0
+libxcb-cursor0
 libxcb-record0
 libxdgutilsbasedir1.0.1
 libxdgutilsdesktopentry1.0.1

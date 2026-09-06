@@ -1316,6 +1316,7 @@ libxatracker2
 libxau6
 libxaw7
 libxcb1
+libxcb-cursor0
 libxcb-damage0
 libxcb-dri2-0
 libxcb-dri3-0
