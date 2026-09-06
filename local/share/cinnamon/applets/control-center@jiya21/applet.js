@@ -489,7 +489,11 @@ class PageStack {
     addRawPage(name, content) {
         let sec = new PopupMenu.PopupMenuSection();
         sec.actor.add_style_class_name('cc-page');
-        content.natural_width = this._w;
+        /* Deliberately no natural_width here.  Imposing one makes the grid
+         * under-report its requirement, and St.Table then allocates its real
+         * width anyway and overflows the page's content box instead of
+         * shrinking.  Let it ask for what it needs; pinWidth() matches the
+         * other pages to it afterwards. */
         sec.addActor(content);          /* popupMenu.js:2099 takes one arg only */
         this.menu.addMenuItem(sec);
         this._pages[name] = sec;
@@ -528,6 +532,8 @@ class PageStack {
      * out, so pinning only natural_width leaves the detail pages narrower and
      * the menu visibly resizes when paging.  Pin every page to the grid's real
      * width instead, measured on first open. */
+    pageActor(name) { return this._pages[name] ? this._pages[name].actor : null; }
+
     pinWidth(w) {
         for (let k in this._pages) {
             this._pages[k].actor.min_width = w;
@@ -653,8 +659,12 @@ class ControlCenterApplet extends Applet.TextIconApplet {
     }
 
     _pinPageWidths() {
-        if (this._widthPinned || !this._grid) return;
-        let [minW, natW] = this._grid.get_preferred_width(-1);
+        if (this._widthPinned) return;
+        /* The grid page's own preferred width already includes .cc-page
+         * padding, which is what the detail pages have to match. */
+        let gridPage = this._pages.pageActor('grid');
+        if (!gridPage) return;
+        let [minW, natW] = gridPage.get_preferred_width(-1);
         let w = Math.max(minW, natW);
         if (w <= 0) return;
         this._pages.pinWidth(w);

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-06T18:46:20+0530",
+  "generated": "2026-09-06T18:57:56+0530",
   "hostname": "jiya21-MacBookAir",
   "user": "jiya21",
   "distro": "Linux Mint 22.3",
@@ -59,7 +59,7 @@
     "local/share/applications/launchpad.desktop": "b9202bd188634a40d63f46e1b1def27bc2bfd02d7a69828dd96251b1c94cd8d9",
     "local/share/applications/webapp-OnlineChat4519.desktop": "3e88bb05bd742b3e6d691d5dc44cd247d9acc7f559426eed519d587c68db4604",
     "local/share/cinnamon/applets/control-center@jiya21/README.md": "8c0917ddad2be2cebb20cc2a314fbcbf9f921924e9dde4604fa617c8b1edec4f",
-    "local/share/cinnamon/applets/control-center@jiya21/applet.js": "4b65490d98f1a63e146357c4c342a45af2452897fa9cb8d3c8e6014090bdbd50",
+    "local/share/cinnamon/applets/control-center@jiya21/applet.js": "f48567da45321bde7559bd38ac413766e3765e675d2534570b7c13143bf38b2c",
     "local/share/cinnamon/applets/control-center@jiya21/icons/cc-controls-symbolic.svg": "941fc4aae2f04f5c09e268a747feb4d04315bb9b89e950fccfbdb1aae059118c",
     "local/share/cinnamon/applets/control-center@jiya21/metadata.json": "4d31987a57204e153f473900e50cd9a5bcbbff209c2870eb6c53e5a0129b36d6",
     "local/share/cinnamon/applets/control-center@jiya21/settings-schema.json": "032113cf90b44e6fe208be25c5b892b0a0382d53ff00d42738994f5e098b0eb3",
