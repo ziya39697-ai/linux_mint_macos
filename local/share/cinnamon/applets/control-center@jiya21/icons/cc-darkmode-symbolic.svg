@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- macOS Dark Mode: a circle outline with its left half filled
+       (SF Symbols circle.lefthalf.filled).  Filled paths only. -->
+  <path fill-rule="evenodd" fill="#2e3436"
+        d="M 8 1 A 7 7 0 1 0 8 15 A 7 7 0 1 0 8 1 Z
+           M 8 2.3 A 5.7 5.7 0 1 1 8 13.7 A 5.7 5.7 0 1 1 8 2.3 Z"/>
+  <path fill="#2e3436" d="M 8 2.3 A 5.7 5.7 0 0 0 8 13.7 Z"/>
+</svg>

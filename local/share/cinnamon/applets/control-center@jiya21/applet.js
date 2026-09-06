@@ -361,9 +361,8 @@ class ConnRow {
 class CircleButton {
     constructor(title, iconName, onClick) {
         this.actor = new St.Button({ style_class: 'cc-tile cc-round', can_focus: true });
-        this._icon = new St.Icon({ icon_name: iconName,
-                                   icon_type: St.IconType.SYMBOLIC,
-                                   icon_size: 22 });
+        this._icon = new St.Icon({ icon_type: St.IconType.SYMBOLIC, icon_size: 22 });
+        this.setIcon(iconName);
         this.actor.set_child(this._icon);
         this._on = false;
         this.actor.connect('clicked', () => onClick(!this._on));
@@ -374,7 +373,15 @@ class CircleButton {
         if (on) this.actor.add_style_class_name('cc-round-on');
         else    this.actor.remove_style_class_name('cc-round-on');
     }
-    setIcon(n) { this._icon.icon_name = n; }
+    /* An absolute path loads one of this applet's own SVGs (icons/), the
+     * same GFileIcon route the panel glyph uses; anything else is a theme
+     * icon name. */
+    setIcon(n) {
+        if (n && n[0] === '/')
+            this._icon.gicon = new Gio.FileIcon({ file: Gio.file_new_for_path(n) });
+        else
+            this._icon.icon_name = n;
+    }
     setSub(t)  { /* circles carry no caption */ }
 }
 
@@ -1040,7 +1047,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                                             x_fill: true, y_fill: true });
         }
         let col = 2;
-        for (let b of [this._nightTile, this._darkTile]) {
+        for (let b of [this._darkTile, this._nightTile]) {
             if (!b) continue;
             cell(b.actor, 2, col++, 1, false);
         }
@@ -1061,10 +1068,23 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         };
 
         if (this._brightTile) wide(this._brightTile.actor, true);
-        if (this._kbdTile)    wide(this._kbdTile.actor, true);
         if (this._soundTile)  wide(this._soundTile.actor, true);
         if (this._slidersFailed) wide(this._failTile(_("Sliders unavailable")), false);
         if (this._mediaTile)  wide(this._mediaTile, true);
+
+        /* Bottom row: the keyboard-backlight slider three columns wide, the
+         * Screen Recording round button in the fourth. */
+        if (this._kbdTile || this._recBtn) {
+            if (this._kbdTile) {
+                g.add(this._kbdTile.actor, { row: row, col: 0, col_span: this._recBtn ? 3 : 4,
+                                             x_expand: true, y_expand: false,
+                                             x_fill: true, y_fill: true });
+                g.child_set(this._kbdTile.actor, { allocate_hidden: false });
+            }
+            if (this._recBtn)
+                cell(this._recBtn.actor, row, 3, 1, false);
+            row++;
+        }
     }
 
     /* Warpinator is Mint's AirDrop; Screen Mirroring and Screenshot are the
@@ -1088,6 +1108,23 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         if (shot) {
             this._shotBtn = new CircleButton(_("Screenshot"), "xsi-screenshooter-symbolic",
                 () => { this.menu.close(); Util.spawnCommandLine(shot); });
+        }
+
+        /* Cinnamon's built-in recorder (the Ctrl+Shift+Alt+R one).  The
+         * button stays lit while recording; click again to stop. */
+        if (Main.screenRecorder && typeof Main.screenRecorder.toggle_recording === "function") {
+            this._recBtn = new CircleButton(_("Screen Recording"), "xsi-media-record-symbolic",
+                () => {
+                    this.menu.close();
+                    try { Main.screenRecorder.toggle_recording(); }
+                    catch (e) { log_err("screen recording", e); }
+                });
+            this._recBtn.actor.add_style_class_name('cc-round-record');
+            const sync = () => this._recBtn.setChecked(!!Main.screenRecorder.recording);
+            try {
+                this._recId = Main.screenRecorder.connect("recording", () => sync());
+            } catch (e) {}
+            sync();
         }
     }
 
@@ -1378,8 +1415,9 @@ class ControlCenterApplet extends Applet.TextIconApplet {
      * restyles this applet's own menus (cc-light). */
     _initDarkMode() {
         this._ifaceSettings = new Gio.Settings({ schema_id: IFACE_SCHEMA });
-        this._darkTile = new CircleButton(_("Dark Mode"), "xsi-appearance-symbolic",
-                                          (want) => this._setDarkMode(want));
+        this._darkTile = new CircleButton(_("Dark Mode"),
+            this._metaPath + "/icons/cc-darkmode-symbolic.svg",
+            (want) => this._setDarkMode(want));
         this._darkId = this._ifaceSettings.connect("changed::gtk-theme",
                                                    () => this._syncDarkMode());
         this._syncDarkMode();
@@ -1436,7 +1474,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
     _initNightLight() {
         this._nightSettings = new Gio.Settings({ schema_id: NIGHT_SCHEMA });
         this._nightTile = new CircleButton(_("Night Light"),
-            "xsi-night-light-symbolic",
+            this._metaPath + "/icons/cc-nightshift-symbolic.svg",
             (want) => this._nightSettings.set_boolean(NIGHT_KEY, want));
         this._nightId = this._nightSettings.connect("changed::" + NIGHT_KEY,
                                                     () => this._syncNightLight());
@@ -1446,8 +1484,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
     _syncNightLight() {
         let on = this._nightSettings.get_boolean(NIGHT_KEY);
         this._nightTile.setChecked(on);
-        this._nightTile.setIcon(on ? "xsi-night-light-symbolic"
-                                   : "xsi-night-light-disabled-symbolic");
         this._nightTile.setSub(on ? _("On") : _("Off"));
     }
 
@@ -1832,6 +1868,9 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
         if (this._ifaceSettings && this._darkId) {
             try { this._ifaceSettings.disconnect(this._darkId); } catch (e) {}
+        }
+        if (this._recId && Main.screenRecorder) {
+            try { Main.screenRecorder.disconnect(this._recId); } catch (e) {}
         }
 
         if (this._dbus && this._ownerChangedId) {

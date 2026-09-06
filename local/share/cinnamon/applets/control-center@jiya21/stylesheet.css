@@ -182,6 +182,16 @@
     background-color: #f2f6ff;
 }
 
+/* Screen Recording lights up red while Cinnamon's recorder is running. */
+.control-center-menu .cc-round-record.cc-round-on {
+    background-color: #ff453a;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-round-record.cc-round-on:hover {
+    background-color: #ff6259;
+}
+
 /* ------------------------------------------------------- Now Playing */
 
 .control-center-menu .cc-nowplaying {
