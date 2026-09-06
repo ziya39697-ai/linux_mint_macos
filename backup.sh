@@ -42,7 +42,7 @@ head_ "config"
 CFG="$BUNDLE/config"
 rm -rf "$CFG"; mkdir -p "$CFG"
 
-# Applet settings (menu icon, calendar format, ...) - keep the tree shape.
+# Applet settings (calendar format, Control Center options, ...) - keep the tree shape.
 mkdir -p "$CFG/cinnamon"
 rsync -a --delete "$HOME/.config/cinnamon/spices" "$CFG/cinnamon/"
 say "cinnamon/spices ($(find "$CFG/cinnamon/spices" -name '*.json' | wc -l) applet settings files)"
@@ -155,8 +155,8 @@ if command -v flatpak >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------- assets
-# The wallpaper and the panel menu icon. Resolved from live dconf so this keeps
-# working after the paths are moved off ~/Downloads.
+# The wallpaper. Resolved from live dconf so this keeps working after the
+# path is moved off ~/Downloads.
 head_ "assets"
 wp_uri="$(dconf read /org/cinnamon/desktop/background/picture-uri | tr -d "'")"
 wp_path="$(python3 -c "import sys,urllib.parse as u;p=u.urlparse(sys.argv[1]);print(u.unquote(p.path))" "$wp_uri")"
@@ -168,26 +168,11 @@ else
   say "WARNING: wallpaper not found at $wp_path"
 fi
 
-menu_json="$HOME/.config/cinnamon/spices/menu@cinnamon.org/0.json"
-menu_icon="$(python3 -c "
-import json,sys
-try: print(json.load(open(sys.argv[1]))['menu-icon']['value'])
-except Exception: print('')
-" "$menu_json" 2>/dev/null || true)"
-# Older/newer schema versions name the key differently - fall back to a scan.
-[[ -z "$menu_icon" ]] && menu_icon="$(python3 -c "
-import json,sys
-d=json.load(open(sys.argv[1]))
-for k,v in d.items():
-    if isinstance(v,dict) and v.get('description')=='Icon': print(v.get('value','')); break
-" "$menu_json" 2>/dev/null || true)"
+# The panel's Apple logo is no longer a menu@cinnamon.org custom icon: the
+# apple-menu@jiya21 applet (backed up under local/share/cinnamon/applets/)
+# ships its own full-resolution icons/apple-symbolic.svg, so there is nothing
+# separate to copy here any more.
 rm -f "$BUNDLE"/assets/menu-icon.*
-if [[ -f "$menu_icon" ]]; then
-  cp -a "$menu_icon" "$BUNDLE/assets/menu-icon.${menu_icon##*.}"
-  say "menu-icon  <- $menu_icon"
-else
-  say "menu icon is a named theme icon ('${menu_icon:-unset}') - nothing to copy"
-fi
 
 # ---------------------------------------------------------------- themes + icons
 head_ "themes + icons (this is the slow part)"

@@ -106,7 +106,7 @@ if [[ -d "$BUNDLE/icons/.dot-icons" ]]; then
 fi
 
 # ---------------------------------------------------------------- assets
-# Land the wallpaper and panel menu icon somewhere stable, never in ~/Downloads.
+# Land the wallpaper somewhere stable, never in ~/Downloads.
 head_ "assets"
 ASSETS="$HOME/.local/share/desktop-assets"
 run "mkdir -p '$ASSETS'"
@@ -275,7 +275,7 @@ if (( APPLY )) && [[ -n "${DISPLAY:-}" ]]; then
   pkill -x plank 2>/dev/null || true
   (setsid plank >/dev/null 2>&1 &) || true
   say "plank restarted"
-  say "now restart Cinnamon to pick up the panel and menu icon:"
+  say "now restart Cinnamon to pick up the panel layout and applets:"
   say "    Ctrl+Alt+Esc     (or:  cinnamon --replace & )"
 else
   run "pkill -x plank; setsid plank &"

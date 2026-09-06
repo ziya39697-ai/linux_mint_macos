@@ -23,6 +23,10 @@ nothing is written until you pass `--apply`.
 A macOS-shaped Cinnamon: a single 20px top panel, window buttons on the **left**,
 WhiteSur GTK theme + icons, Bibata cursors, Plank as the dock with a hand-written
 `macOS` dock theme, and a custom full-screen Launchpad in place of an app menu.
+The panel's left end is the `apple-menu@jiya21` applet (an  menu: About This Mac,
+System Settings, App Store, Recent Items, Force Quit, Sleep/Restart/Shut Down, Lock
+Screen, Log Out), its right end the `control-center@jiya21` applet; the stock Mint
+menu is not on the panel at all.
 There is no window-list applet — Plank does that job.
 
 ## Contents
@@ -30,14 +34,15 @@ There is no window-list applet — Plank does that job.
 | Path | What |
 |---|---|
 | `dconf/` | 7 `dconf` dumps: Cinnamon, Plank, Nemo, GNOME desktop, X-Apps, GTK, Mint |
-| `config/cinnamon/spices/` | Applet settings — the panel menu icon, calendar format `%a %b %-d  %-I:%M %p` (macOS-style, 12-hour) |
+| `config/cinnamon/spices/` | Applet settings — calendar format `%a %b %-d  %-I:%M %p` (macOS-style, 12-hour), Control Center options |
+| `local/share/cinnamon/applets/` | The hand-written applets: `apple-menu@jiya21` (Apple logo SVG, About This Mac window, Force Quit dialog), `control-center@jiya21`, `spotlight@jiya21` |
 | `config/plank/` | The 6 dock items and their order |
 | `config/launchpad/layout.json` | Launchpad page/grid layout (30 apps + 2 folders) |
 | `config/autostart/` | Plank + Launchpad daemon autostart entries |
 | `config/bashrc.delta` | **Only** the lines appended to the stock `/etc/skel/.bashrc` |
 | `local/bin/launchpad` | The custom ~1900-line Python/GTK3 Launchpad, mode 755 |
 | `local/share/plank/themes/macOS/` | The hand-authored frosted-glass dock theme |
-| `assets/` | Wallpaper and panel menu icon |
+| `assets/` | Wallpaper |
 | `themes/` | `WhiteSur-Dark-solid` GTK/Cinnamon theme (4.1 MB) |
 | `icons/` | `WhiteSur`, `-dark`, `-light` (103 MB) + the `default` cursor stubs |
 | `packages/intentional.txt` | The 21 packages actually chosen, per Mint's own record |
@@ -68,11 +73,10 @@ under a different username works.
 
 ## Assets no longer live in ~/Downloads
 
-The wallpaper and the panel's Apple-logo menu icon originally pointed into
-`~/Downloads`, where one cleanup would have silently broken them (the menu icon would
-have quietly fallen back to the Mint logo). Both now live in
-`~/.local/share/desktop-assets/` and the settings point there. The originals were
-copied, not moved — they are still in `~/Downloads`.
+The wallpaper originally pointed into `~/Downloads`, where one cleanup would have
+silently broken it. It now lives in `~/.local/share/desktop-assets/` and the setting
+points there. (The old Apple-logo PNG that the Mint menu used is obsolete: the Apple
+menu applet draws its logo from its own full-resolution `icons/apple-symbolic.svg`.)
 
 ## Rebuilding the icon theme instead of using the bundled copy
 
@@ -116,7 +120,7 @@ desktop launchers (`~/Desktop` is empty), user systemd units, and cron jobs.
 ## After a restore
 
 `restore.sh` restarts Plank itself. Restart Cinnamon with **Ctrl+Alt+Esc** to pick up
-the panel layout and the menu icon. Then, by hand:
+the panel layout and the applets. Then, by hand:
 
 - install nvm (the `.bashrc` delta sources it but does not install it)
 - re-add git credentials

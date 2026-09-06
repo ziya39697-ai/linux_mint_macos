@@ -1,0 +1,7 @@
+{
+    "uuid": "apple-menu@jiya21",
+    "name": "Apple Menu",
+    "description": "macOS-style Apple menu: About This Mac, System Settings, App Store, Recent Items, Force Quit, Sleep, Restart, Shut Down, Lock Screen, Log Out",
+    "icon": "apple-symbolic",
+    "max-instances": 1
+}

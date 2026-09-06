@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=About This Mac
+Comment=System summary, macOS style
+Exec=python3 /home/jiya21/.local/share/cinnamon/applets/apple-menu@jiya21/tools/about-this-mac.py
+Icon=help-about
+Terminal=false
+NoDisplay=true
+StartupWMClass=about-this-mac
+Categories=System;

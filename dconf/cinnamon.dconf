@@ -1,13 +1,13 @@
 [/]
 alttab-switcher-delay=100
 device-aliases=['/org/freedesktop/UPower/devices/battery_BAT0:=DP bq20z451']
-enabled-applets=['panel1:left:0:menu@cinnamon.org:0', 'panel1:left:1:separator@cinnamon.org:1', 'panel1:right:1:systray@cinnamon.org:3', 'panel1:right:2:notifications@cinnamon.org:5', 'panel1:right:3:spotlight@jiya21:19', 'panel1:right:4:control-center@jiya21:18', 'panel1:right:5:calendar@cinnamon.org:16']
+enabled-applets=['panel1:left:0:apple-menu@jiya21:20', 'panel1:left:1:separator@cinnamon.org:1', 'panel1:right:1:systray@cinnamon.org:3', 'panel1:right:2:notifications@cinnamon.org:5', 'panel1:right:3:spotlight@jiya21:19', 'panel1:right:4:control-center@jiya21:18', 'panel1:right:5:calendar@cinnamon.org:16']
 enabled-extensions=['BlurCinnamon@klangman']
 next-applet-id=20
 no-adjacent-panel-barriers=false
 panel-edit-mode=false
 panel-zone-icon-sizes='[{"panelId":1,"left":0,"center":0,"right":16}]'
-panel-zone-symbolic-icon-sizes='[{"panelId": 1, "left": 28, "center": 28, "right": 16}]'
+panel-zone-symbolic-icon-sizes='[{"panelId": 1, "left": 16, "center": 16, "right": 16}]'
 panel-zone-text-sizes='[{"panelId":1,"left":0,"center":0,"right":9}]'
 panels-autohide=['1:false', '2:false']
 panels-enabled=['1:0:top']
@@ -89,6 +89,11 @@ tap-3='MEDIA_PLAY_PAUSE::end'
 [muffin]
 draggable-border-width=10
 experimental-features=['scale-monitor-framebuffer', 'x11-randr-fractional-scaling']
+
+[recorder]
+file-extension='webm'
+framerate=60
+pipeline='videoconvert ! queue ! vp8enc min_quantizer=8 max_quantizer=26 cpu-used=16 deadline=1 threads=4 token-partitions=2 keyframe-max-dist=120 buffer-size=6000 ! queue ! mux. pulsesrc device=alsa_output.pci-0000_00_1b.0.analog-stereo.monitor ! audioconvert ! audioresample ! audio/x-raw,channels=2,rate=48000 ! opusenc bitrate=128000 ! queue ! mux. webmmux name=mux'
 
 [settings-daemon/plugins/color]
 night-light-enabled=true

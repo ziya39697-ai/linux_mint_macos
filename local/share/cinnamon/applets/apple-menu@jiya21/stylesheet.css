@@ -1,0 +1,172 @@
+/* Apple Menu — macOS Tahoe menu styling.
+ *
+ * Cinnamon 6 gives popup menus the classes `menu menu-top …` (not
+ * `popup-menu`), and the WhiteSur theme paints `.menu` with an opaque 9-slice
+ * border-image, so every container rule here must start with `.menu.` to win. */
+
+/* ---------------------------------------------------------------- panel */
+.applet-box.am-panel {
+    padding: 0 7px;
+}
+.applet-box.am-panel:hover {
+    background-color: transparent;
+}
+/* Only the open state highlights the logo, like macOS. */
+.applet-box.am-panel:checked,
+.applet-box.am-panel:checked:hover {
+    background-color: rgba(255, 255, 255, 0.22);
+    border-radius: 5px;
+}
+
+/* ---------------------------------------------------------------- menu */
+.menu.apple-menu {
+    border-image: none;
+    background-color: rgba(34, 34, 38, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 11px;
+    padding: 5px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    color: #ffffff;
+    font-size: 13px;
+    min-width: 232px;
+}
+.menu.apple-menu .popup-menu-content {
+    padding: 0;
+}
+.menu.apple-menu .popup-menu-item {
+    padding: 3px 10px;
+    spacing: 0;
+    border-radius: 5px;
+    color: #ffffff;
+}
+.menu.apple-menu .popup-menu-item:active,
+.menu.apple-menu .popup-menu-item:checked {
+    background-color: #0a84ff;
+    color: #ffffff;
+}
+.menu.apple-menu .popup-inactive-menu-item {
+    color: #ffffff;
+}
+.menu.apple-menu .am-row {
+    spacing: 8px;
+}
+.menu.apple-menu .am-hint {
+    color: rgba(255, 255, 255, 0.5);
+    padding-left: 24px;
+}
+.menu.apple-menu .popup-menu-item:active .am-hint {
+    color: rgba(255, 255, 255, 0.85);
+}
+.menu.apple-menu .am-dim {
+    color: rgba(255, 255, 255, 0.45);
+}
+.menu.apple-menu .popup-separator-menu-item {
+    height: 1px;
+    margin: 5px 0;
+    padding: 0;
+    -margin-horizontal: 10px;
+    border-color: rgba(255, 255, 255, 0.14);
+    border-bottom-width: 1px;
+    border-bottom-style: solid;
+}
+
+/* Recent Items: Cinnamon submenus unfold in place; keep the unfolded block
+ * flat (no theme pill) and indent its rows. */
+.menu.apple-menu .am-submenu-item {
+    spacing: 8px;
+}
+.menu.apple-menu .popup-menu-arrow {
+    icon-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+}
+.menu.apple-menu .popup-menu-item:active .popup-menu-arrow {
+    color: #ffffff;
+}
+.menu.apple-menu .popup-sub-menu {
+    background-color: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+}
+.menu.apple-menu .popup-sub-menu .popup-menu-item {
+    padding-left: 26px;
+}
+.menu.apple-menu .am-doc-icon {
+    icon-size: 16px;
+}
+
+/* ------------------------------------------------------- light appearance */
+.menu.apple-menu.am-light {
+    background-color: rgba(246, 246, 248, 0.96);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    color: #000000;
+}
+.menu.apple-menu.am-light .popup-menu-item,
+.menu.apple-menu.am-light .popup-inactive-menu-item {
+    color: #000000;
+}
+.menu.apple-menu.am-light .popup-menu-item:active,
+.menu.apple-menu.am-light .popup-menu-item:checked {
+    color: #ffffff;
+}
+.menu.apple-menu.am-light .am-hint {
+    color: rgba(0, 0, 0, 0.5);
+}
+.menu.apple-menu.am-light .am-dim {
+    color: rgba(0, 0, 0, 0.45);
+}
+.menu.apple-menu.am-light .popup-separator-menu-item {
+    border-color: rgba(0, 0, 0, 0.12);
+}
+.menu.apple-menu.am-light .popup-menu-arrow {
+    color: rgba(0, 0, 0, 0.55);
+}
+
+/* ------------------------------------------------------- Force Quit dialog */
+.am-fq-dialog {
+    background-color: rgba(38, 38, 42, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 18px 20px 14px;
+    min-width: 400px;
+    color: #ffffff;
+}
+.am-fq-dialog .am-fq-title {
+    font-weight: bold;
+    font-size: 14px;
+    padding-bottom: 4px;
+}
+.am-fq-dialog .am-fq-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    padding-bottom: 12px;
+}
+.am-fq-dialog .am-fq-scroll {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 4px;
+    max-height: 260px;
+    min-height: 120px;
+}
+.am-fq-dialog .am-fq-row {
+    padding: 4px 8px;
+    border-radius: 5px;
+    text-align: left;
+    color: #ffffff;
+}
+.am-fq-dialog .am-fq-row:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+.am-fq-dialog .am-fq-row.am-fq-row-sel,
+.am-fq-dialog .am-fq-row.am-fq-row-sel:hover {
+    background-color: #0a84ff;
+}
+.am-fq-dialog .am-fq-row-box {
+    spacing: 10px;
+}
+.am-fq-dialog .am-fq-empty {
+    color: rgba(255, 255, 255, 0.5);
+    padding: 12px;
+}
