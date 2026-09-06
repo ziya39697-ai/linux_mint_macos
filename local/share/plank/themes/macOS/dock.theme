@@ -27,11 +27,12 @@ BottomPadding=3
 #The padding between items on the dock, in tenths of a percent of IconSize.
 ItemPadding=3
 #The color (RGBA) of the indicator.
-IndicatorColor=255;;255;;255;;255
+IndicatorColor=255;;255;;255;;230
 #The size of item indicators, in tenths of a percent of IconSize.
-IndicatorSize=5
-#Soft glow under running apps - subtler than a solid dot.
-IndicatorStyle=0
+IndicatorSize=1
+#Solid dot. Style 0 ignores IndicatorColor (uses the GTK theme colour - blue).
+#Drawn size = IndicatorSize * IconSize / 10, so 1 * 56 / 10 = 5px.
+IndicatorStyle=2
 #The size of the icon-shadow behind every item, in tenths of a percent of IconSize.
 IconShadowSize=1
 #The height (in percent of IconSize) to bounce an icon when the application sets urgent.
@@ -73,8 +74,8 @@ BadgeStyle=0
 #The color (RGBA) of the badge text
 BadgeTextColor=0;;0;;0;;0
 #The style of the active item, styles: gradient, color-gradient, solid, color-solid, center-gradient, color-center-gradient.
-ActiveItemStyle=0
-#The color (RGBA) of the active item background.
-ActiveItemColor=0;;0;;0;;255
+ActiveItemStyle=3
+#Active item background - alpha 0 so only the indicator glow shows.
+ActiveItemColor=0;;0;;0;;0
 #The padding before and after a separator, in tenths of a percent of IconSize.
 SeparatorPadding=-1

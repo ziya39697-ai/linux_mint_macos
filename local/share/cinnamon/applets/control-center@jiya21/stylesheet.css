@@ -1,0 +1,69 @@
+/*
+ * Control Center styling.
+ *
+ * Everything here is scoped to .control-center-menu so no other applet menu on
+ * the desktop is affected.
+ */
+
+/*
+ * WhiteSur-Dark-solid paints .popup-menu with an opaque 9-slice
+ * (border-image: assets/menu-solid.svg).  BlurCinnamon only neutralises
+ * background/gradient properties, so that image would keep painting over the
+ * blurred backdrop and the menu would look solid.  Clearing it lets the blur
+ * through.
+ *
+ * The background-color below is the no-blur fallback: when BlurCinnamon is
+ * active it sets `background: transparent` inline on the menu actor, and
+ * inline styles win in St, so the same rule works either way.
+ */
+.popup-menu.control-center-menu {
+    border-image: none;
+    background-color: rgba(28, 28, 30, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 6px 0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* macOS groups controls into rounded translucent tiles; the tiles do the
+ * separating, so there are no separator lines in this menu. */
+.control-center-menu .control-center-card {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 6px 2px;
+    margin: 4px 8px;
+}
+
+.control-center-menu .popup-menu-item {
+    padding: 0.4em 0.9em;
+    border-radius: 6px;
+}
+
+/* Fatter, more macOS-like sliders than the theme's 4px default. */
+.control-center-menu .popup-slider-menu-item {
+    min-width: 18em;
+    padding: 0.5em 0.9em;
+    -slider-height: 6px;
+    -slider-handle-radius: 9px;
+    -slider-background-color: rgba(255, 255, 255, 0.18);
+    -slider-border-color: transparent;
+    -slider-active-background-color: #ffffff;
+    -slider-active-border-color: transparent;
+    -slider-border-width: 0;
+    -slider-handle-border-width: 0;
+}
+
+.control-center-menu .popup-subtitle-menu-item {
+    font-weight: bold;
+}
+
+/* A busy area can produce far more networks than fit on screen.  menu.box is a
+ * plain BoxLayout and would clip, so the SSID list gets its own scroll view. */
+.control-center-menu .control-center-wifi-scroll {
+    max-height: 320px;
+}
+
+.control-center-menu .popup-inactive-menu-item {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.9em;
+}

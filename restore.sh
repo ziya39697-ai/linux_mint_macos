@@ -178,6 +178,12 @@ if [[ -d "$STAGE/local/share/cinnamon/extensions" ]]; then
   say "cinnamon extensions ($(ls "$STAGE/local/share/cinnamon/extensions" | tr '\n' ' '))"
 fi
 
+if [[ -d "$STAGE/local/share/cinnamon/applets" ]]; then
+  run "mkdir -p '$HOME/.local/share/cinnamon/applets'"
+  run "rsync -a '$STAGE/local/share/cinnamon/applets/' '$HOME/.local/share/cinnamon/applets/'"
+  say "cinnamon applets ($(ls "$STAGE/local/share/cinnamon/applets" | tr '\n' ' '))"
+fi
+
 if [[ -d "$STAGE/apps/ulauncher" ]]; then
   run "mkdir -p '$HOME/.config/ulauncher'"
   run "rsync -a '$STAGE/apps/ulauncher/' '$HOME/.config/ulauncher/'"

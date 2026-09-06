@@ -1,0 +1,69 @@
+{
+    "head-general": {
+        "type": "header",
+        "description": "General"
+    },
+    "keyOpen": {
+        "type": "keybinding",
+        "default": "<Super>c",
+        "description": "Show the Control Center",
+        "value": "<Super>c"
+    },
+    "labelinfo": {
+        "type": "combobox",
+        "default": "percentage",
+        "description": "Battery label in the panel",
+        "options": {
+            "Percentage": "percentage",
+            "Time remaining": "time",
+            "Percentage and time": "percentage_time",
+            "Hide": "nothing"
+        },
+        "value": "percentage"
+    },
+    "head-wifi": {
+        "type": "header",
+        "description": "Wi-Fi"
+    },
+    "wifiListMode": {
+        "type": "combobox",
+        "default": "full",
+        "description": "Networks to show",
+        "options": {
+            "All networks": "full",
+            "Top 5, rest under \"More\"": "stock"
+        },
+        "value": "full"
+    },
+    "wifiMaxHeight": {
+        "type": "spinbutton",
+        "default": 320,
+        "min": 120,
+        "max": 800,
+        "step": 20,
+        "units": "pixels",
+        "description": "Maximum Wi-Fi list height",
+        "value": 320
+    },
+    "head-bt": {
+        "type": "header",
+        "description": "Bluetooth"
+    },
+    "btSettingsCmd": {
+        "type": "entry",
+        "default": "",
+        "description": "Bluetooth settings command (blank = auto-detect)",
+        "value": ""
+    },
+    "head-media": {
+        "type": "header",
+        "description": "Media"
+    },
+    "showMediaPlayer": {
+        "type": "switch",
+        "default": true,
+        "description": "Show the Now Playing section",
+        "value": true
+    },
+    "__md5__": "12d04063bafd83af445ae5037af15b2c"
+}

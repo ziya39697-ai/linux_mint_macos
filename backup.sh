@@ -98,6 +98,16 @@ if [[ -d "$HOME/.local/share/cinnamon/extensions" ]]; then
   say "share/cinnamon/extensions ($(ls "$BUNDLE/local/share/cinnamon/extensions" | wc -l) installed)"
 fi
 
+# Locally-written applets (the Control Center lives here). Without this the
+# applet's *settings* would be backed up under config/cinnamon/spices/ while the
+# code itself was not, so a restore would leave a dead entry on the panel.
+if [[ -d "$HOME/.local/share/cinnamon/applets" ]] && \
+   [[ -n "$(ls -A "$HOME/.local/share/cinnamon/applets" 2>/dev/null)" ]]; then
+  rsync -a --exclude '__pycache__' \
+    "$HOME/.local/share/cinnamon/applets" "$BUNDLE/local/share/cinnamon/"
+  say "share/cinnamon/applets ($(ls "$BUNDLE/local/share/cinnamon/applets" | wc -l) installed)"
+fi
+
 # ---------------------------------------------------------------- add-on apps
 # Ulauncher (Spotlight), Newelle (AI assistant), Toshy (Mac keybindings).
 # Each is skipped silently when absent, so this stays correct on a machine where

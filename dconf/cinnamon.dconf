@@ -1,9 +1,9 @@
 [/]
 alttab-switcher-delay=100
 device-aliases=['/org/freedesktop/UPower/devices/battery_BAT0:=DP bq20z451']
-enabled-applets=['panel1:left:0:menu@cinnamon.org:0', 'panel1:left:1:separator@cinnamon.org:1', 'panel1:right:1:systray@cinnamon.org:3', 'panel1:right:2:notifications@cinnamon.org:5', 'panel1:right:4:network@cinnamon.org:10', 'panel1:right:5:sound@cinnamon.org:11', 'panel1:right:3:power@cinnamon.org:12', 'panel1:right:6:calendar@cinnamon.org:16']
+enabled-applets=['panel1:left:0:menu@cinnamon.org:0', 'panel1:left:1:separator@cinnamon.org:1', 'panel1:right:1:systray@cinnamon.org:3', 'panel1:right:2:notifications@cinnamon.org:5', 'panel1:right:3:control-center@jiya21:18', 'panel1:right:4:calendar@cinnamon.org:16']
 enabled-extensions=['BlurCinnamon@klangman']
-next-applet-id=18
+next-applet-id=19
 no-adjacent-panel-barriers=false
 panel-edit-mode=false
 panel-zone-icon-sizes='[{"panelId":1,"left":0,"center":0,"right":24}]'
@@ -11,15 +11,15 @@ panel-zone-symbolic-icon-sizes='[{"panelId": 1, "left": 28, "center": 28, "right
 panel-zone-text-sizes='[{"panelId":1,"left":0,"center":0,"right":0}]'
 panels-autohide=['1:false', '2:false']
 panels-enabled=['1:0:top']
-panels-height=['1:20', '2:40']
+panels-height=['1:24', '2:40']
 panels-hide-delay=['1:0', '2:0']
 panels-show-delay=['1:0', '2:0']
 show-media-keys-osd=false
-window-effect-speed=1
+window-effect-speed=0
 
 [desktop/background]
 picture-options='zoom'
-picture-uri='file:///home/jiya21/.local/share/desktop-assets/wallpaper.jpeg'
+picture-uri='file:///home/jiya21/.local/share/desktop-assets/wallpaper-sonoma.jpg'
 
 [desktop/background/slideshow]
 delay=15
@@ -30,7 +30,7 @@ sources=[('xkb', 'us')]
 
 [desktop/interface]
 cursor-size=24
-cursor-theme='Bibata-Modern-Classic'
+cursor-theme='WhiteSur-cursors'
 font-name='Inter 10'
 gtk-theme='WhiteSur-Dark-solid'
 icon-theme='WhiteSur'
@@ -63,7 +63,7 @@ layout-group=0
 event-sounds=false
 
 [desktop/wm/preferences]
-button-layout='close,maximize,minimize:'
+button-layout='close,minimize,maximize:'
 min-window-opacity=30
 titlebar-font='Inter Medium 10'
 
