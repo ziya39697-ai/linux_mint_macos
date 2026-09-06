@@ -2,6 +2,6 @@
     "uuid": "control-center@jiya21",
     "name": "Control Center",
     "description": "macOS-style Control Center: Wi-Fi, Bluetooth, brightness, volume, media and battery in one menu",
-    "icon": "preferences-system",
+    "icon": "cc-controls-symbolic",
     "max-instances": 1
 }

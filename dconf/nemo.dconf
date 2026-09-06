@@ -1,12 +1,12 @@
 [desktop]
-computer-icon-visible=true
+computer-icon-visible=false
 home-icon-visible=false
 network-icon-visible=false
 show-orphaned-desktop-icons=true
 trash-icon-visible=true
 
 [window-state]
-geometry='800x550+50+70'
+geometry='800x550+34+58'
 maximized=false
 sidebar-bookmark-breakpoint=5
 start-with-sidebar=true

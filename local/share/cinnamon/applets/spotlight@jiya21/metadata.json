@@ -1,0 +1,7 @@
+{
+    "uuid": "spotlight@jiya21",
+    "name": "Spotlight",
+    "description": "Search icon that opens Ulauncher directly, like macOS Spotlight",
+    "icon": "xsi-edit-find-symbolic",
+    "max-instances": 1
+}

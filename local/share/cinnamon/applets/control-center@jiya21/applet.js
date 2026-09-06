@@ -29,6 +29,7 @@ const NM         = imports.gi.NM;
 const PopupMenu  = imports.ui.popupMenu;
 const Settings   = imports.ui.settings;
 const St         = imports.gi.St;
+const Tooltips   = imports.ui.tooltips;
 const UPowerGlib = imports.gi.UPowerGlib;
 const Util       = imports.misc.util;
 
@@ -91,6 +92,24 @@ function firstProgram(candidates) {
             return c;
     }
     return null;
+}
+
+function hasKeyboardBacklight() {
+    try {
+        let dir = Gio.file_new_for_path("/sys/class/leds");
+        let e = dir.enumerate_children("standard::name", Gio.FileQueryInfoFlags.NONE, null);
+        let info;
+        while ((info = e.next_file(null)) !== null) {
+            if (info.get_name().indexOf("kbd_backlight") !== -1) {
+                e.close(null);
+                return true;
+            }
+        }
+        e.close(null);
+    } catch (err) {
+        log_err("probing for keyboard backlight", err);
+    }
+    return false;
 }
 
 /* ------------------------------------------------------------------------ *
@@ -252,19 +271,293 @@ class BluetoothManager {
     }
 }
 
-/* ------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------ *
+ * macOS Control Center widgets.
+ *
+ * The grid is built from raw St actors, never PopupBaseMenuItems.  That is
+ * deliberate: PopupMenu syncs column widths across every menu item on each
+ * layout pass (popupMenu.js:2628-2635), which would distort a grid.  Raw
+ * actors with _delegate = null are skipped by that machinery entirely
+ * (popupMenu.js:2054-2083).
+ * ------------------------------------------------------------------------ */
+
+const MENU_WIDTH = 340;          /* logical px, before ui_scale */
+
+/* A round icon button.  State is applied by an explicit style class rather
+ * than a :checked pseudo-class so it does not depend on how the active theme
+ * resolves descendant pseudo-selectors. */
+class CircleToggle {
+    constructor(iconName, onToggle) {
+        this.actor = new St.Button({ style_class: 'cc-circle', can_focus: true });
+        this._icon = new St.Icon({ icon_name: iconName,
+                                   icon_type: St.IconType.SYMBOLIC,
+                                   icon_size: 17 });
+        this.actor.set_child(this._icon);
+        this._on = false;
+        this.actor.connect('clicked', () => onToggle(!this._on));
+    }
+
+    setChecked(on) {
+        this._on = !!on;
+        if (on) this.actor.add_style_class_name('cc-circle-on');
+        else    this.actor.remove_style_class_name('cc-circle-on');
+    }
+
+    setIcon(name) { this._icon.icon_name = name; }
+
+    setSensitive(sensitive) {
+        this.actor.reactive = sensitive;
+        this.actor.can_focus = sensitive;
+        if (sensitive) this.actor.remove_style_class_name('cc-circle-dim');
+        else           this.actor.add_style_class_name('cc-circle-dim');
+    }
+}
+
+/* Title over a dimmer subtitle — the macOS tile caption. */
+class TileLabelPair {
+    constructor(title, sub) {
+        this.actor = new St.BoxLayout({ vertical: true });
+        this._title = new St.Label({ text: title, style_class: 'cc-tile-title' });
+        this._sub   = new St.Label({ text: sub || '', style_class: 'cc-tile-sub' });
+        this.actor.add(this._title);
+        this.actor.add(this._sub);
+    }
+    setTitle(t) { this._title.text = t; }
+    setSub(t) {
+        this._sub.text = t || '';
+        this._sub.visible = !!t;
+    }
+}
+
+/* One row of the connectivity tile: round toggle on the left, clickable
+ * label on the right that opens the detail page. */
+class ConnRow {
+    constructor(title, iconName, onToggle, onOpenDetail) {
+        this.actor = new St.BoxLayout({ style_class: 'cc-conn-row' });
+
+        this.toggle = new CircleToggle(iconName, onToggle);
+        this.actor.add(this.toggle.actor, { y_align: St.Align.MIDDLE, y_fill: false });
+
+        this.labels = new TileLabelPair(title, '');
+        this._btn = new St.Button({ style_class: 'cc-conn-label', can_focus: true });
+        this._btn.set_child(this.labels.actor);
+        this._btn.connect('clicked', onOpenDetail);
+        this.actor.add(this._btn, { expand: true, x_fill: true,
+                                    y_align: St.Align.MIDDLE, y_fill: false });
+    }
+    setChecked(on) { this.toggle.setChecked(on); }
+    setIcon(n)     { this.toggle.setIcon(n); }
+    setSub(t)      { this.labels.setSub(t); }
+}
+
+/* A square grid tile that is one big toggle button (DND, Night Light). */
+class ToggleTile {
+    constructor(title, iconName, onToggle) {
+        this.actor = new St.Button({ style_class: 'cc-tile cc-tile-square',
+                                     can_focus: true });
+        let box = new St.BoxLayout({ vertical: true, style_class: 'cc-square-box' });
+
+        this._circle = new St.Bin({ style_class: 'cc-circle' });
+        this._icon = new St.Icon({ icon_name: iconName,
+                                   icon_type: St.IconType.SYMBOLIC,
+                                   icon_size: 17 });
+        this._circle.set_child(this._icon);
+        box.add(this._circle, { x_align: St.Align.MIDDLE, x_fill: false });
+
+        this._title = new St.Label({ text: title, style_class: 'cc-tile-title' });
+        this._sub   = new St.Label({ text: '', style_class: 'cc-tile-sub' });
+        box.add(this._title, { x_align: St.Align.MIDDLE, x_fill: false });
+        box.add(this._sub,   { x_align: St.Align.MIDDLE, x_fill: false });
+
+        this.actor.set_child(box);
+        this._on = false;
+        this.actor.connect('clicked', () => onToggle(!this._on));
+    }
+
+    setChecked(on) {
+        this._on = !!on;
+        if (on) this._circle.add_style_class_name('cc-circle-on');
+        else    this._circle.remove_style_class_name('cc-circle-on');
+    }
+    setIcon(n) { this._icon.icon_name = n; }
+    setSub(t)  { this._sub.text = t || ''; }
+}
+
+/*
+ * A fat macOS pill slider with the icon sitting inside the groove.
+ *
+ * The stock VolumeSlider / BrightnessSlider cannot do this themselves: their
+ * PopupBaseMenuItem container lays children out strictly side by side with no
+ * z-stacking (popupMenu.js:348-410).  But everything those classes need after
+ * construction hangs off `_slider` and `icon`, not off `actor`
+ * (popupMenu.js:670-675, :779-781, :825-828), and removeActor() is a clean
+ * unparent with no destroy (popupMenu.js:246-249).  So the two children are
+ * lifted out and re-hosted in a BinLayout, the same overlay trick the sound
+ * applet uses for cover art (sound@:557-591).
+ *
+ * The pill shape is free: sliderBorderRadius = min(width, sliderHeight)/2
+ * (popupMenu.js:703), so a 26px -slider-height rounds to a 13px radius.
+ */
+class FatSlider {
+    constructor(item) {
+        this.item = item;
+
+        try { item.removeActor(item.icon); }    catch (e) {}
+        try { item.removeActor(item._slider); } catch (e) {}
+
+        this.actor = new St.Widget({
+            style_class: 'cc-fatslider',
+            layout_manager: new Clutter.BinLayout(),
+            x_expand: true
+        });
+        this.actor._delegate = null;
+
+        /* groove first => bottom of the z-stack */
+        item._slider.add_style_class_name('cc-fat-groove');
+        item._slider.x_expand = true;
+        item._slider.y_expand = true;
+        this.actor.add_child(item._slider);
+
+        /* St.Bin does the START/MIDDLE placement itself, so this does not rely
+         * on BinLayout honouring per-child alignment. */
+        this._iconBin = new St.Bin({ style_class: 'cc-fatslider-iconbin',
+                                     x_align: St.Align.START,
+                                     y_align: St.Align.MIDDLE });
+        /* The bin must not eat events, but the icon itself stays reactive for
+         * the volume slider — that is its click-to-mute target (sound@:110-119). */
+        this._iconBin.reactive = false;
+        this._iconBin.set_child(item.icon);
+        this.actor.add_child(this._iconBin);
+
+        /* Re-anchor the tooltip.  Bound to the now-orphaned actor it would
+         * never receive motion, so mousePosition stays null and show() would
+         * silently no-op (tooltips.js:238-240). */
+        try {
+            let text = item.tooltipText || '';
+            if (item.tooltip) item.tooltip.destroy();
+            item.tooltip = new Tooltips.Tooltip(item._slider, text);
+        } catch (e) {
+            log_err("re-anchoring slider tooltip", e);
+        }
+
+        /* Mirror the orphan's visibility: BrightnessSlider hides itself until
+         * its D-Bus proxy answers (power@:222, :274) and VolumeSlider hides on
+         * a null stream (sound@:129).  Without this a machine with no keyboard
+         * backlight would still show the tile. */
+        this._visId = item.actor.connect('notify::visible',
+            () => { this.actor.visible = item.actor.visible; });
+        this.actor.visible = item.actor.visible;
+    }
+
+    destroy() {
+        if (this._visId) {
+            try { this.item.actor.disconnect(this._visId); } catch (e) {}
+            this._visId = 0;
+        }
+        try { this.actor.destroy(); } catch (e) {}
+    }
+}
+
+/* Full-width tile: caption above a fat slider. */
+class SliderTile {
+    constructor(title, fatSlider) {
+        this.actor = new St.BoxLayout({ vertical: true, style_class: 'cc-tile' });
+        this.actor.add(new St.Label({ text: title, style_class: 'cc-tile-title' }));
+        this.actor.add(fatSlider.actor, { expand: true, x_fill: true });
+        this.fat = fatSlider;
+        /* follow the slider's own visibility up to the whole tile */
+        fatSlider.actor.connect('notify::visible',
+            () => { this.actor.visible = fatSlider.actor.visible; });
+        this.actor.visible = fatSlider.actor.visible;
+    }
+}
+
+/*
+ * Two-page menu: the raw-actor grid, and detail pages for Wi-Fi/Bluetooth.
+ *
+ * The detail pages stay real PopupMenuSections on purpose — the reused
+ * NMDeviceWireless.section is built from PopupBaseMenuItems and needs the
+ * menu's column-width syncing to stay aligned.
+ */
+class PageStack {
+    constructor(menu, widthPx) {
+        this.menu = menu;
+        this._w = widthPx * global.ui_scale;
+        this._pages = {};
+    }
+
+    addRawPage(name, content) {
+        let sec = new PopupMenu.PopupMenuSection();
+        sec.actor.add_style_class_name('cc-page');
+        content.natural_width = this._w;
+        sec.addActor(content);          /* popupMenu.js:2099 takes one arg only */
+        this.menu.addMenuItem(sec);
+        this._pages[name] = sec;
+        return sec;
+    }
+
+    addMenuPage(name, titleText, onBack) {
+        let sec = new PopupMenu.PopupMenuSection();
+        sec.actor.add_style_class_name('cc-page');
+        sec.actor.natural_width = this._w;
+
+        let hdr = new St.BoxLayout({ style_class: 'cc-detail-header' });
+        hdr._delegate = null;
+        let back = new St.Button({ style_class: 'cc-back-button', can_focus: true });
+        back.set_child(new St.Icon({ icon_name: 'xsi-go-previous-symbolic',
+                                     icon_type: St.IconType.SYMBOLIC,
+                                     icon_size: 16 }));
+        back.connect('clicked', onBack);
+        hdr.add(back, { y_align: St.Align.MIDDLE, y_fill: false });
+        hdr.add(new St.Label({ text: titleText, style_class: 'cc-detail-title' }),
+                { expand: true, y_align: St.Align.MIDDLE, y_fill: false });
+        sec.addActor(hdr);
+
+        this.menu.addMenuItem(sec);
+        sec.actor.visible = false;
+        this._pages[name] = sec;
+        return sec;
+    }
+
+    show(name) {
+        for (let k in this._pages)
+            this._pages[k].actor.visible = (k === name);
+    }
+
+    /* The grid's own minimum width exceeds MENU_WIDTH once the tiles are laid
+     * out, so pinning only natural_width leaves the detail pages narrower and
+     * the menu visibly resizes when paging.  Pin every page to the grid's real
+     * width instead, measured on first open. */
+    pinWidth(w) {
+        for (let k in this._pages) {
+            this._pages[k].actor.min_width = w;
+            this._pages[k].actor.natural_width = w;
+        }
+    }
+
+    reset() { this.show('grid'); }
+}
+
+const NIGHT_SCHEMA = "org.cinnamon.settings-daemon.plugins.color";
+const NIGHT_KEY    = "night-light-enabled";
+const DND_SCHEMA   = "org.cinnamon.desktop.notifications";
+const DND_KEY      = "display-notifications";   /* false == Do Not Disturb ON */
 
 class ControlCenterApplet extends Applet.TextIconApplet {
     constructor(metadata, orientation, panel_height, instance_id) {
         super(orientation, panel_height, instance_id);
 
         this.setAllowedLayout(Applet.AllowedLayout.BOTH);
-        this.set_applet_icon_symbolic_name("preferences-system");
         this.set_applet_tooltip(_("Control Center"));
         this.set_show_label_in_vertical_panels(false);
         this.set_applet_label("");
 
         this._uuid = metadata.uuid;
+        this._metaPath = metadata.path;
+        this.panel_icon_name = null;
+        /* The battery slot stays empty until csd-power answers. */
+        this._applet_icon_box.hide();
+
         this.settings = new Settings.AppletSettings(this, metadata.uuid, instance_id);
         this.settings.bind("labelinfo", "labelinfo", () => this._updateBatteryLabel());
         this.settings.bind("wifiListMode", "wifiListMode");
@@ -276,19 +569,71 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this.menuManager = new PopupMenu.PopupMenuManager(this);
         this.menu = new Applet.AppletPopupMenu(this, orientation);
         this.menuManager.addMenu(this.menu);
-
-        /* BlurCinnamon can only blur what the theme does not paint over, and
-         * WhiteSur-Dark-solid draws .popup-menu with an opaque border-image.
-         * The stylesheet clears it for this class only. */
         this.menu.actor.add_style_class_name("control-center-menu");
 
-        this._sections = {};
+        /* The macOS Control Center glyph, appended after [icon][label] so the
+         * panel reads  [battery][74%] [glyph]  (applet.js:144, :694, :827).
+         * Loaded as a GFileIcon rather than by name: same route as
+         * set_applet_icon_symbolic_path (applet.js:749-762), which sidesteps
+         * icon-theme cache timing entirely. */
+        try {
+            this._ccGlyph = new St.Icon({
+                style_class: 'system-status-icon cc-panel-glyph',
+                icon_type: St.IconType.SYMBOLIC,
+                icon_size: this.getPanelIconSize(St.IconType.SYMBOLIC),
+                gicon: new Gio.FileIcon({
+                    file: Gio.file_new_for_path(
+                        this._metaPath + "/icons/cc-controls-symbolic.svg") })
+            });
+            this.actor.add(this._ccGlyph, { y_align: St.Align.MIDDLE, y_fill: false });
+        } catch (e) {
+            log_err("control center glyph", e);
+        }
 
-        this._buildSection("wifi",      (c) => this._initWifi(c));
-        this._buildSection("bluetooth", (c) => this._initBluetooth(c));
-        this._buildSection("sliders",   (c) => this._initSliders(c));
-        this._buildSection("media",     (c) => this._initMedia(c));
-        this._buildSection("battery",   (c) => this._initBattery(c));
+        /* macOS keeps battery and Control Center as separate menu bar items.
+         * One applet, two menus, two click targets: the battery icon/label
+         * opens the battery menu, the glyph opens the Control Center. */
+        this.batteryMenu = new Applet.AppletPopupMenu(this, orientation);
+        this.menuManager.addMenu(this.batteryMenu);
+        this.batteryMenu.actor.add_style_class_name("control-center-menu");
+        this.batteryMenu.actor.add_style_class_name("cc-battery-menu");
+
+        this._applet_icon_box.reactive = true;
+        this._applet_icon_box.connect('button-press-event',
+            () => { this.batteryMenu.toggle(); return Clutter.EVENT_STOP; });
+        this._layoutBin.reactive = true;
+        this._layoutBin.connect('button-press-event',
+            () => { this.batteryMenu.toggle(); return Clutter.EVENT_STOP; });
+
+        this._pages = new PageStack(this.menu, MENU_WIDTH);
+
+        this._grid = new St.Table({ style_class: 'cc-grid', homogeneous: false });
+        this._grid._delegate = null;      /* keep it out of the column sync */
+        this._pages.addRawPage('grid', this._grid);
+
+        this._wifiPage = this._pages.addMenuPage('wifi', _("Wi-Fi"),
+                                                 () => this._pages.reset());
+        this._btPage   = this._pages.addMenuPage('bt', _("Bluetooth"),
+                                                 () => this._pages.reset());
+
+        /* Wi-Fi and Bluetooth share one tall connectivity tile. */
+        this._connTile = new St.BoxLayout({ vertical: true, style_class: 'cc-tile' });
+
+        this._tile("wifi",       () => this._initWifi());
+        this._tile("bluetooth",  () => this._initBluetooth());
+        this._tile("dnd",        () => this._initDnd());
+        this._tile("nightlight", () => this._initNightLight());
+        this._tile("sliders",    () => this._initSliders());
+        this._tile("media",      () => this._initMedia());
+        this._tile("battery",    () => this._initBattery());
+
+        this._assembleGrid();
+        this._pages.show('grid');
+
+        this.menu.connect('open-state-changed', (m, open) => {
+            if (open) this._pinPageWidths();
+            else      this._pages.reset();
+        });
 
         try {
             this.settings.bind("keyOpen", "keyOpen", () => this._setKeybinding());
@@ -297,8 +642,8 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             log_err("keybinding", e);
         }
 
-        /* blueman keeps running (it is the pairing agent) but its tray icon is
-         * redundant now that Bluetooth lives in here. */
+        /* blueman stays running — it is the pairing agent — but its tray icon
+         * is redundant now that Bluetooth lives here. */
         try {
             Main.systrayManager.registerTrayIconReplacement("blueman", this._uuid);
             Main.systrayManager.registerTrayIconReplacement("bluetooth", this._uuid);
@@ -307,34 +652,81 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
     }
 
-    /* Each section is independent: one broken section must not cost the user
-     * their volume, Wi-Fi and battery indicators all at once. */
-    _buildSection(name, fn) {
-        let card = new PopupMenu.PopupMenuSection();
-        card.actor.add_style_class_name("control-center-card");
-        this.menu.addMenuItem(card);
-        this._sections[name] = card;
+    _pinPageWidths() {
+        if (this._widthPinned || !this._grid) return;
+        let [minW, natW] = this._grid.get_preferred_width(-1);
+        let w = Math.max(minW, natW);
+        if (w <= 0) return;
+        this._pages.pinWidth(w);
+        this._widthPinned = true;
+    }
 
+    /* Each tile is built independently.  With network@, sound@ and power@ gone
+     * from the panel, one uncaught exception would otherwise cost the user
+     * Wi-Fi, volume, brightness and battery in a single stroke. */
+    _tile(name, fn) {
         try {
-            fn.call(this, card);
+            fn.call(this);
         } catch (e) {
-            log_err("section '" + name + "' failed to build", e);
-            card.removeAll();
-            let item = new PopupMenu.PopupIconMenuItem(
-                _("%s unavailable").format(name), "dialog-warning",
-                St.IconType.SYMBOLIC);
-            item.connect("activate", () => Util.spawnCommandLine("cinnamon-settings"));
-            card.addMenuItem(item);
+            log_err("tile '" + name + "' failed to build", e);
+            this["_" + name + "Failed"] = true;
         }
     }
 
-    _card(name) {
-        return this._sections[name];
+    _failTile(label) {
+        let tile = new St.BoxLayout({ vertical: true, style_class: 'cc-tile' });
+        tile.add(new St.Label({ text: label, style_class: 'cc-tile-title' }));
+        let btn = new St.Button({ style_class: 'cc-conn-label', can_focus: true });
+        btn.set_child(new St.Label({ text: _("Open Settings…"),
+                                     style_class: 'cc-tile-sub' }));
+        btn.connect('clicked', () => {
+            this.menu.close();
+            Util.spawnCommandLine("cinnamon-settings");
+        });
+        tile.add(btn);
+        return tile;
+    }
+
+    /*
+     * StTableChild:allocate-hidden defaults to TRUE, so a hidden tile would
+     * otherwise keep reserving its full cell.  Anything that can legitimately
+     * be absent gets allocate_hidden:false.
+     */
+    _assembleGrid() {
+        let g = this._grid;
+
+        g.add(this._connTile, { row: 0, col: 0, row_span: 2,
+                                x_expand: true, y_expand: false,
+                                x_fill: true, y_fill: true });
+
+        if (this._dndTile)
+            g.add(this._dndTile.actor, { row: 0, col: 1,
+                                         x_expand: false, y_expand: false,
+                                         x_fill: true, y_fill: true });
+        if (this._nightTile)
+            g.add(this._nightTile.actor, { row: 0, col: 2,
+                                           x_expand: false, y_expand: false,
+                                           x_fill: true, y_fill: true });
+
+        let row = 2;
+        const wide = (actor, canHide) => {
+            g.add(actor, { row: row, col: 0, col_span: 3,
+                           x_expand: true, y_expand: false,
+                           x_fill: true, y_fill: false });
+            if (canHide) g.child_set(actor, { allocate_hidden: false });
+            row++;
+        };
+
+        if (this._brightTile) wide(this._brightTile.actor, true);
+        if (this._kbdTile)    wide(this._kbdTile.actor, true);
+        if (this._soundTile)  wide(this._soundTile.actor, true);
+        if (this._slidersFailed) wide(this._failTile(_("Sliders unavailable")), false);
+        if (this._mediaTile)  wide(this._mediaTile, true);
     }
 
     /* -------------------------------------------------------------- Wi-Fi */
 
-    _initWifi(card) {
+    _initWifi() {
         if (!NetLib || typeof NetLib.NMDeviceWireless !== "function")
             throw new Error("network module did not provide NMDeviceWireless");
 
@@ -348,15 +740,21 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._ctypes = {};
         this._ctypes[NM.SETTING_WIRELESS_SETTING_NAME] = NetLib.NMConnectionCategory.WIRELESS;
 
+        this._wifiRow = new ConnRow(_("Wi-Fi"),
+            "xsi-network-wireless-signal-excellent-symbolic",
+            (want) => this._setWifiEnabled(want),
+            () => this._pages.show('wifi'));
+        this._connTile.add(this._wifiRow.actor, { x_fill: true });
+
+        /* --- detail page --- */
         this._wifiSwitch = new NetLib.NMWirelessSectionTitleMenuItem(
             this._nmClient, "wireless", _("Wi-Fi"));
-        card.addMenuItem(this._wifiSwitch);
+        this._wifiPage.addMenuItem(this._wifiSwitch);
 
         this._wifiSection = new PopupMenu.PopupMenuSection();
-        card.addMenuItem(this._wifiSection);
+        this._wifiPage.addMenuItem(this._wifiSection);
 
-        /* A long SSID list would clip, not scroll: menu.box is a plain
-         * BoxLayout.  Wrap it so it scrolls instead. */
+        /* menu.box would clip a long SSID list rather than scroll it. */
         this._wifiScroll = new St.ScrollView({
             style_class: "control-center-wifi-scroll",
             hscrollbar_policy: St.PolicyType.NEVER,
@@ -379,12 +777,11 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                 this.menu.close();
                 Util.spawnCommandLine(netCmd);
             });
-            card.addMenuItem(item);
+            this._wifiPage.addMenuItem(item);
         }
 
-        /* Order matters: NMDevice._init silently drops connections that have
-         * not been annotated with _uuid/_name yet (network:329-338), so
-         * connections must be read before devices. */
+        /* Connections before devices: NMDevice._init silently drops any
+         * connection not yet annotated with _uuid/_name (network@:329-338). */
         this._readConnections();
         this._readDevices();
         this._syncActiveConnections();
@@ -396,15 +793,581 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             this._nmClient.connect("connection-added", (c, x) => this._connectionAdded(c, x)),
             this._nmClient.connect("connection-removed", (c, x) => this._connectionRemoved(c, x)),
             this._nmClient.connect("notify::active-connections",
-                                   () => this._syncActiveConnections())
+                                   () => this._syncActiveConnections()),
+            this._nmClient.connect("notify::wireless-enabled",
+                                   () => this._syncWifiTile()),
+            this._nmClient.connect("notify::wireless-hardware-enabled",
+                                   () => this._syncWifiTile())
         ];
+    }
+
+    /*
+     * Drive NetworkManager directly, mirroring network@:279-291.
+     *
+     * Do NOT route this through this._wifiSwitch.activate(): that method only
+     * toggles when this._switch.actor.mapped (popupMenu.js:933-939), and the
+     * detail page is unmapped while the grid is showing — the click would
+     * silently do nothing.
+     */
+    _setWifiEnabled(state) {
+        if (!this._nmClient) return;
+        this._nmClient.wireless_set_enabled(state);
+        if (this._wifiDevices.length === 1) {
+            try {
+                if (state) this._wifiDevices[0].activate();
+                else       this._wifiDevices[0].deactivate();
+            } catch (e) {
+                log_err("wifi device activate/deactivate", e);
+            }
+        }
+    }
+
+    _syncWifiTile() {
+        if (!this._wifiRow || !this._nmClient) return;
+
+        let sw = this._nmClient.wireless_enabled;
+        let hw = this._nmClient.wireless_hardware_enabled;
+        let on = sw && hw;
+
+        this._wifiRow.setChecked(on);
+        this._wifiRow.setIcon(on ? "xsi-network-wireless-signal-excellent-symbolic"
+                                 : "xsi-network-wireless-offline-symbolic");
+        /* A hardware killswitch is not something the user can undo from here. */
+        this._wifiRow.toggle.setSensitive(hw);
+
+        let sub = null;
+        if (!hw)      sub = _("Hardware disabled");
+        else if (!sw) sub = _("Off");
+        else {
+            try {
+                let dev = this._wifiDevices[0];
+                let ap = dev && dev.device ? dev.device.active_access_point : null;
+                if (ap && ap.get_ssid())
+                    sub = NetLib.ssidToLabel(ap.get_ssid());
+                else if (dev && dev.statusLabel)
+                    sub = dev.statusLabel;
+            } catch (e) {}
+            if (!sub) sub = _("Not connected");
+        }
+        this._wifiRow.setSub(sub);
+    }
+
+    /* One adapter: the section-title switch stands in for the device's own.
+     * Several: each shows its own (network@:2030-2052). */
+    _syncWifiTitle() {
+        let devices = this._wifiDevices || [];
+
+        if (devices.length === 0) {
+            if (this._wifiSwitch) this._wifiSwitch.actor.hide();
+            if (this._wifiScroll) this._wifiScroll.hide();
+            if (this._wifiRow) this._wifiRow.actor.hide();
+            this._syncWifiTile();
+            return;
+        }
+
+        if (this._wifiRow) this._wifiRow.actor.show();
+        this._wifiSwitch.actor.show();
+        if (this._wifiScroll) this._wifiScroll.show();
+
+        if (devices.length === 1) {
+            devices[0].statusItem.actor.hide();
+            this._wifiSwitch.updateForDevice(devices[0]);
+        } else {
+            for (let d of devices)
+                d.statusItem.actor.visible = (d.device.state !== NM.DeviceState.UNMANAGED);
+            this._wifiSwitch.updateForDevice(null);
+        }
+        this._syncWifiTile();
+    }
+
+    /* ---------------------------------------------------------- Bluetooth */
+
+    _initBluetooth() {
+        this._btRow = new ConnRow(_("Bluetooth"), "xsi-bluetooth-symbolic",
+            (want) => this._bt.setPowered(want),
+            () => this._pages.show('bt'));
+        this._connTile.add(this._btRow.actor, { x_fill: true });
+
+        this._btSwitch = new PopupMenu.PopupSwitchMenuItem(_("Bluetooth"), false,
+            { style_class: "popup-subtitle-menu-item" });
+        this._btSwitch.connect("toggled", (item, state) => this._bt.setPowered(state));
+        this._btPage.addMenuItem(this._btSwitch);
+
+        this._btDeviceSection = new PopupMenu.PopupMenuSection();
+        this._btPage.addMenuItem(this._btDeviceSection);
+
+        let btCmd = this.btSettingsCmd && this.btSettingsCmd.length
+            ? this.btSettingsCmd
+            : firstProgram(["blueberry", "blueman-manager",
+                            "gnome-control-center bluetooth"]);
+        if (btCmd) {
+            let item = new PopupMenu.PopupIconMenuItem(
+                _("Bluetooth Settings…"), "xsi-bluetooth-symbolic",
+                St.IconType.SYMBOLIC);
+            item.connect("activate", () => {
+                this.menu.close();
+                Util.spawnCommandLine(btCmd);
+            });
+            this._btPage.addMenuItem(item);
+        }
+
+        this._btRows = [];
+        this._bt = new BluetoothManager(() => this._syncBluetooth());
+    }
+
+    _syncBluetooth() {
+        if (!this._btRow) return;
+
+        if (!this._bt.available) {
+            this._btRow.actor.hide();
+            return;
+        }
+        this._btRow.actor.show();
+
+        this._btRow.setChecked(this._bt.powered);
+        this._btRow.setIcon(this._bt.powered ? "xsi-bluetooth-symbolic"
+                                             : "xsi-bluetooth-disabled-symbolic");
+        if (this._btSwitch) this._btSwitch.setToggleState(this._bt.powered);
+
+        for (let row of this._btRows) row.destroy();
+        this._btRows = [];
+        this._btDeviceSection.removeAll();
+
+        if (!this._bt.powered) {
+            this._btRow.setSub(_("Off"));
+            return;
+        }
+
+        let connected = this._bt.devices.filter((d) => d.connected);
+        this._btRow.setSub(connected.length
+            ? connected.map((d) => d.alias).join(", ")
+            : _("On"));
+
+        for (let dev of this._bt.devices) {
+            let label = dev.alias;
+            if (dev.battery !== null && dev.battery !== undefined)
+                label += " — " + Math.round(dev.battery) + "%";
+
+            let row = new PopupMenu.PopupSwitchIconMenuItem(
+                label, dev.connected, this._btIconFor(dev.icon),
+                St.IconType.SYMBOLIC);
+            row.setStatus(dev.connected ? _("Connected") : null);
+            if (this._bt.isPending(dev.path)) row.setSensitive(false);
+            row.connect("toggled", (item, state) => {
+                item.setSensitive(false);
+                this._bt.setDeviceConnected(dev.path, state);
+            });
+            this._btDeviceSection.addMenuItem(row);
+            this._btRows.push(row);
+        }
+    }
+
+    /* ------------------------------------------- Do Not Disturb / Night Light */
+
+    _initDnd() {
+        this._dndSettings = new Gio.Settings({ schema_id: DND_SCHEMA });
+        this._dndTile = new ToggleTile(_("Do Not Disturb"),
+            "xsi-notifications-disabled-symbolic",
+            /* Inverted: DND on means notifications off. */
+            (wantDnd) => this._dndSettings.set_boolean(DND_KEY, !wantDnd));
+        this._dndId = this._dndSettings.connect("changed::" + DND_KEY,
+                                                () => this._syncDnd());
+        this._syncDnd();
+    }
+
+    _syncDnd() {
+        let dnd = !this._dndSettings.get_boolean(DND_KEY);
+        this._dndTile.setChecked(dnd);
+        this._dndTile.setIcon(dnd ? "xsi-notifications-disabled-symbolic"
+                                  : "xsi-notifications-symbolic");
+        this._dndTile.setSub(dnd ? _("On") : _("Off"));
+    }
+
+    _initNightLight() {
+        this._nightSettings = new Gio.Settings({ schema_id: NIGHT_SCHEMA });
+        this._nightTile = new ToggleTile(_("Night Light"),
+            "xsi-night-light-symbolic",
+            (want) => this._nightSettings.set_boolean(NIGHT_KEY, want));
+        this._nightId = this._nightSettings.connect("changed::" + NIGHT_KEY,
+                                                    () => this._syncNightLight());
+        this._syncNightLight();
+    }
+
+    _syncNightLight() {
+        let on = this._nightSettings.get_boolean(NIGHT_KEY);
+        this._nightTile.setChecked(on);
+        this._nightTile.setIcon(on ? "xsi-night-light-symbolic"
+                                   : "xsi-night-light-disabled-symbolic");
+        this._nightTile.setSub(on ? _("On") : _("Off"));
+    }
+
+    /* ------------------------------------------ Brightness and volume */
+
+    _initSliders() {
+        /* xsi- names come from hicolor, which WhiteSur inherits.  The plain
+         * display-brightness-symbolic / keyboard-brightness-symbolic that the
+         * stock power applet asks for live only in WhiteSur-light and Adwaita
+         * respectively, neither of which is in this theme's inheritance chain,
+         * so they would render blank here. */
+        if (PowerLib && typeof PowerLib.BrightnessSlider === "function") {
+            this._brightness = new PowerLib.BrightnessSlider(
+                this, _("Brightness"), "xsi-display-brightness",
+                "org.cinnamon.SettingsDaemon.Power.Screen", 0);
+            this._brightTile = new SliderTile(_("Display"),
+                                              new FatSlider(this._brightness));
+
+            /* csd-power answers GetPercentage with 0 and no error even on a
+             * machine with no keyboard backlight, so BrightnessSlider shows
+             * itself regardless (power@:274).  Gate on the LED actually
+             * existing instead, or the grid grows a dead slider. */
+            if (hasKeyboardBacklight()) {
+                this._keyboardBacklight = new PowerLib.BrightnessSlider(
+                    this, _("Keyboard backlight"), "xsi-keyboard-brightness",
+                    "org.cinnamon.SettingsDaemon.Power.Keyboard", 0);
+                this._kbdTile = new SliderTile(_("Keyboard"),
+                                               new FatSlider(this._keyboardBacklight));
+            }
+        }
+
+        if (!SoundLib || typeof SoundLib.VolumeSlider !== "function")
+            throw new Error("sound module did not provide VolumeSlider");
+
+        this._control = new Cvc.MixerControl({ name: "Cinnamon Control Center" });
+        this._volumeNorm = this._control.get_vol_max_norm();
+        this._volumeMax = this._volumeNorm;
+        this._output = null;
+        this._streams = [];
+
+        try {
+            this._soundSettings = new Gio.Settings({ schema_id: "org.cinnamon.desktop.sound" });
+            this._overampId = this._soundSettings.connect(
+                "changed::allow-amplified-volume", () => this._onOveramplificationChange());
+            this._onOveramplificationChange();
+        } catch (e) {
+            log_err("sound settings", e);
+        }
+
+        this._outputSlider = new SoundLib.VolumeSlider(this, null, _("Volume"), null);
+        this._soundTile = new SliderTile(_("Sound"), new FatSlider(this._outputSlider));
+
+        /* Per-application streams sit under the main slider inside the tile. */
+        this._appStreamSection = new PopupMenu.PopupMenuSection();
+        this._soundTile.actor.add(this._appStreamSection.actor, { x_fill: true });
+        this._streamSections = {};
+
+        this._control.connect("state-changed", () => this._onControlStateChanged());
+        this._control.connect("active-output-update", () => this._readOutput());
+        this._control.connect("stream-added", (c, id) => this._onStreamAdded(id));
+        this._control.connect("stream-removed", (c, id) => this._onStreamRemoved(id));
+        this._control.open();
+
+        this.actor.connect("scroll-event", (actor, event) => this._onScroll(actor, event));
+    }
+
+    /* ---------------------------------------------------------- Media */
+
+    _initMedia() {
+        if (!SoundLib || typeof SoundLib.Player !== "function")
+            throw new Error("sound module did not provide Player");
+
+        this._players = {};
+        this._playerItems = [];
+        this._activePlayer = null;
+
+        this._mediaTile = new St.BoxLayout({ vertical: true, style_class: 'cc-tile' });
+        this._playerSection = new PopupMenu.PopupMenuSection();
+        this._mediaTile.add(this._playerSection.actor, { x_fill: true });
+        this._mediaTile.visible = false;
+
+        Interfaces.getDBusAsync((proxy, error) => {
+            if (error) {
+                log_err("dbus for MPRIS", error);
+                return;
+            }
+            this._dbus = proxy;
+            let re = /^org\.mpris\.MediaPlayer2\./;
+
+            this._dbus.ListNamesRemote((names) => {
+                for (let n in names[0]) {
+                    let name = names[0][n];
+                    if (re.test(name))
+                        this._dbus.GetNameOwnerRemote(name,
+                            (owner) => this._addPlayer(name, owner[0]));
+                }
+            });
+
+            this._ownerChangedId = this._dbus.connectSignal("NameOwnerChanged",
+                (p, sender, [name, oldOwner, newOwner]) => {
+                    if (!re.test(name)) return;
+                    if (newOwner && !oldOwner)      this._addPlayer(name, newOwner);
+                    else if (oldOwner && !newOwner) this._removePlayer(name, oldOwner);
+                    else                            this._changePlayerOwner(name, oldOwner, newOwner);
+                });
+        });
+    }
+
+    _updatePlayerMenuItems() {
+        if (!this._mediaTile) return;
+        let any = Object.keys(this._players || {}).length > 0;
+        this._mediaTile.visible = any && this.showMediaPlayer;
+    }
+
+    get extendedPlayerControl() { return false; }
+
+    /* --------------------------------------------------------- Battery */
+
+    _initBattery() {
+        this._deviceItems = [];
+        this._primaryIcon = null;
+
+        this._batterySection = new PopupMenu.PopupMenuSection();
+        this.batteryMenu.addMenuItem(this._batterySection);
+
+        this._profileSection = new PopupMenu.PopupMenuSection();
+        this.batteryMenu.addMenuItem(this._profileSection);
+        this._initPowerProfiles();
+
+        let powerCmd = firstProgram(["cinnamon-settings power"]);
+        if (powerCmd) {
+            this.batteryMenu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            let item = new PopupMenu.PopupIconMenuItem(
+                _("Battery Settings…"), "xsi-battery-level-100-symbolic",
+                St.IconType.SYMBOLIC);
+            item.connect("activate", () => {
+                this.batteryMenu.close();
+                Util.spawnCommandLine(powerCmd);
+            });
+            this.batteryMenu.addMenuItem(item);
+        }
+
+        this.aliases = global.settings.get_strv("device-aliases");
+
+        Interfaces.getDBusProxyAsync("org.cinnamon.SettingsDaemon.Power",
+                                     (proxy, error) => {
+            if (error) {
+                log_err("power proxy", error);
+                return;
+            }
+            this._powerProxy = proxy;
+            this._powerProxy.connect("g-properties-changed", () => this._devicesChanged());
+            this._devicesChanged();
+        }, null);
+    }
+
+    _devicesChanged() {
+        if (!this._powerProxy || !PowerLib) return;
+
+        this._powerProxy.GetDevicesRemote((result, error) => {
+            for (let i of this._deviceItems) i.destroy();
+            this._deviceItems = [];
+            this._batterySection.removeAll();
+
+            this._primaryPercentage = null;
+            this._primaryTime = null;
+            this._primaryIcon = null;
+
+            if (error) return;
+
+            let devices = result[0] || [];
+            for (let device of devices) {
+                let [device_id, vendor, model, device_kind, icon,
+                     percentage, state, battery_level, seconds] = device;
+
+                if (device_kind === UPDeviceKind.LINE_POWER) continue;
+                if (state === UPDeviceState.UNKNOWN) continue;
+
+                let status = this._getDeviceStatus(state, seconds);
+
+                let item;
+                try {
+                    item = new PowerLib.DeviceItem(device, status, this.aliases);
+                } catch (e) {
+                    log_err("battery row", e);
+                    continue;
+                }
+                this._batterySection.addMenuItem(item);
+                this._deviceItems.push(item);
+
+                if (device_kind === UPDeviceKind.BATTERY &&
+                    this._primaryPercentage === null) {
+                    this._primaryPercentage = percentage;
+                    this._primaryTime = seconds;
+                    this._primaryIcon = icon;
+                }
+            }
+
+            this._updateBatteryLabel();
+            this._setPanelBatteryIcon(this._primaryIcon);
+        });
+    }
+
+    /* power-profiles-daemon is running here with power-saver / balanced /
+     * performance.  Mirrors the proxy power@:393-402 builds. */
+    _initPowerProfiles() {
+        const IFACE =
+            '<node><interface name="net.hadess.PowerProfiles">' +
+            '<property name="ActiveProfile" type="s" access="readwrite"/>' +
+            '<property name="Profiles" type="aa{sv}" access="read"/>' +
+            '</interface></node>';
+        try {
+            let Proxy = Gio.DBusProxy.makeProxyWrapper(IFACE);
+            this._profilesProxy = new Proxy(Gio.DBus.system,
+                "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles",
+                (proxy, error) => {
+                    if (error) {
+                        log_err("power profiles proxy", error);
+                        return;
+                    }
+                    this._buildProfileItems();
+                    this._profilesProxy.connect("g-properties-changed",
+                                                () => this._syncProfiles());
+                });
+        } catch (e) {
+            log_err("power profiles", e);
+        }
+    }
+
+    _buildProfileItems() {
+        let profiles;
+        try {
+            profiles = this._profilesProxy.Profiles;
+        } catch (e) {
+            log_err("reading Profiles", e);
+            return;
+        }
+        if (!profiles || !profiles.length) return;
+
+        const ICONS = {
+            "power-saver": "xsi-power-profile-power-saver-symbolic",
+            "balanced":    "xsi-power-profile-balanced-symbolic",
+            "performance": "xsi-power-profile-performance-symbolic"
+        };
+        const NAMES = (PowerLib && PowerLib.POWER_PROFILES) ? PowerLib.POWER_PROFILES : {};
+
+        this._profileSection.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this._profileItems = {};
+
+        for (let entry of profiles) {
+            let name = unwrap(entry["Profile"]);
+            if (!name) continue;
+            let item = new PopupMenu.PopupIconMenuItem(
+                NAMES[name] || name,
+                ICONS[name] || "xsi-power-profile-balanced-symbolic",
+                St.IconType.SYMBOLIC);
+            item.connect("activate", () => {
+                try {
+                    this._profilesProxy.ActiveProfile = name;
+                } catch (e) {
+                    log_err("setting profile " + name, e);
+                }
+            });
+            this._profileSection.addMenuItem(item);
+            this._profileItems[name] = item;
+        }
+        this._syncProfiles();
+    }
+
+    _syncProfiles() {
+        if (!this._profileItems) return;
+        let active;
+        try {
+            active = this._profilesProxy.ActiveProfile;
+        } catch (e) {
+            return;
+        }
+        for (let name in this._profileItems)
+            this._profileItems[name].setShowDot(name === active);
+    }
+
+    /*
+     * Transcribed from power@:604-618.  The order is load-bearing:
+     * set_applet_icon_symbolic_name() forces St.IconType.SYMBOLIC and the
+     * correct panel icon size via _setStyle(), and only then is the gicon
+     * overwritten with the themed-icon string UPower supplied (currently
+     * "xsi-battery-level-70-symbolic ...").  Assigning .gicon alone does not
+     * re-run _setStyle().
+     */
+    _setPanelBatteryIcon(icon) {
+        if (!icon) {
+            this._applet_icon_box.hide();
+            this.panel_icon_name = null;
+            return;
+        }
+        this._applet_icon_box.show();
+        if (this.panel_icon_name !== icon) {
+            this.panel_icon_name = icon;
+            this.set_applet_icon_symbolic_name('xsi-battery-level-100');
+            this._applet_icon.gicon = Gio.icon_new_for_string(icon);
+        }
+    }
+
+    /* ---------------------------------------------------------- Applet */
+
+    /* _setStyle() resizes _applet_icon but knows nothing about our glyph, and
+     * it can clobber the battery gicon, so both are re-applied here. */
+    on_panel_height_changed() {
+        if (this._ccGlyph)
+            this._ccGlyph.icon_size = this.getPanelIconSize(St.IconType.SYMBOLIC);
+        if (this.panel_icon_name && this._applet_icon)
+            this._applet_icon.gicon = Gio.icon_new_for_string(this.panel_icon_name);
+    }
+
+    on_applet_clicked(event) {
+        this.menu.toggle();
+    }
+
+    on_applet_removed_from_panel() {
+        try {
+            Main.keybindingManager.removeHotKey("control-center-open-" + this.instance_id);
+        } catch (e) {}
+
+        if (this._bt) {
+            this._bt.destroy();
+            this._bt = null;
+        }
+
+        if (this._nmClient && this._nmSignals) {
+            for (let id of this._nmSignals) {
+                try { this._nmClient.disconnect(id); } catch (e) {}
+            }
+            this._nmSignals = null;
+        }
+        for (let wrapper of (this._wifiDevices || [])) {
+            try { wrapper.destroy(); } catch (e) {}
+        }
+        this._wifiDevices = [];
+
+        for (let t of [this._brightTile, this._kbdTile, this._soundTile]) {
+            if (t && t.fat) { try { t.fat.destroy(); } catch (e) {} }
+        }
+
+        /* Otherwise every reload leaks a PulseAudio client. */
+        if (this._control) {
+            try { this._control.close(); } catch (e) {}
+            this._control = null;
+        }
+
+        if (this._soundSettings && this._overampId) {
+            try { this._soundSettings.disconnect(this._overampId); } catch (e) {}
+        }
+        if (this._dndSettings && this._dndId) {
+            try { this._dndSettings.disconnect(this._dndId); } catch (e) {}
+        }
+        if (this._nightSettings && this._nightId) {
+            try { this._nightSettings.disconnect(this._nightId); } catch (e) {}
+        }
+
+        if (this._dbus && this._ownerChangedId) {
+            try { this._dbus.disconnectSignal(this._ownerChangedId); } catch (e) {}
+        }
+
+        this.settings.finalize();
     }
 
     _applyWifiHeight() {
         if (!this._wifiScroll) return;
         this._wifiScroll.style = "max-height: " + this.wifiMaxHeight + "px;";
     }
-
     _readConnections() {
         let connections = this._nmClient.get_connections() || [];
         for (let connection of connections) {
@@ -416,7 +1379,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             this._connections.push(connection);
         }
     }
-
     _updateConnection(connection) {
         let cs = connection.get_setting_by_name(NM.SETTING_CONNECTION_SETTING_NAME);
         if (!cs) return;
@@ -434,7 +1396,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         for (let dev of this._wifiDevices)
             dev.checkConnection(connection);
     }
-
     _connectionAdded(client, connection) {
         if (connection._uuid) return;
         connection._updatedId =
@@ -442,7 +1403,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._updateConnection(connection);
         this._connections.push(connection);
     }
-
     _connectionRemoved(client, connection) {
         let pos = this._connections.indexOf(connection);
         if (pos !== -1)
@@ -459,13 +1419,11 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
         connection._uuid = null;
     }
-
     _readDevices() {
         let devices = this._nmClient.get_devices() || [];
         for (let d of devices)
             this._deviceAdded(this._nmClient, d);
     }
-
     _deviceAdded(client, device) {
         if (device._delegate)
             return;
@@ -482,7 +1440,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
         this._syncWifiTitle();
     }
-
     _deviceRemoved(client, device) {
         if (!device._delegate)
             return;
@@ -498,32 +1455,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._wifiDevices.splice(this._wifiDevices.indexOf(wrapper), 1);
         this._syncWifiTitle();
     }
-
-    /* With one adapter the section-title switch stands in for the device's own
-     * switch; with several, each device shows its own (network:2030-2052). */
-    _syncWifiTitle() {
-        let devices = this._wifiDevices;
-
-        if (devices.length === 0) {
-            this._wifiSwitch.actor.hide();
-            if (this._wifiScroll) this._wifiScroll.hide();
-            return;
-        }
-
-        this._wifiSwitch.actor.show();
-        if (this._wifiScroll) this._wifiScroll.show();
-
-        if (devices.length === 1) {
-            devices[0].statusItem.actor.hide();
-            this._wifiSwitch.updateForDevice(devices[0]);
-        } else {
-            for (let d of devices)
-                d.statusItem.actor.visible = (d.device.state !== NM.DeviceState.UNMANAGED);
-            this._wifiSwitch.updateForDevice(null);
-        }
-    }
-
-    /* Wi-Fi-only cut of network:2138 — no VPN, wireguard, wwan or wired. */
     _syncActiveConnections() {
         let newActive = this._nmClient.get_active_connections() || [];
 
@@ -574,82 +1505,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._mainConnection = activated || activating || defaultIp4 || null;
         this._syncWifiTitle();
     }
-
-    /* ---------------------------------------------------------- Bluetooth */
-
-    _initBluetooth(card) {
-        this._btSwitch = new PopupMenu.PopupSwitchMenuItem(_("Bluetooth"), false,
-            { style_class: "popup-subtitle-menu-item" });
-        this._btSwitch.connect("toggled", (item, state) => {
-            this._bt.setPowered(state);
-        });
-        card.addMenuItem(this._btSwitch);
-
-        this._btDeviceSection = new PopupMenu.PopupMenuSection();
-        card.addMenuItem(this._btDeviceSection);
-
-        let btCmd = this.btSettingsCmd && this.btSettingsCmd.length
-            ? this.btSettingsCmd
-            : firstProgram(["blueberry", "blueman-manager",
-                            "gnome-control-center bluetooth"]);
-        if (btCmd) {
-            this._btSettingsItem = new PopupMenu.PopupIconMenuItem(
-                _("Bluetooth Settings…"), "bluetooth", St.IconType.SYMBOLIC);
-            this._btSettingsItem.connect("activate", () => {
-                this.menu.close();
-                Util.spawnCommandLine(btCmd);
-            });
-            card.addMenuItem(this._btSettingsItem);
-        }
-
-        this._btRows = [];
-        this._bt = new BluetoothManager(() => this._syncBluetooth());
-    }
-
-    _syncBluetooth() {
-        if (!this._btSwitch) return;
-
-        let card = this._card("bluetooth");
-
-        if (!this._bt.available) {
-            if (card) card.actor.hide();
-            return;
-        }
-        if (card) card.actor.show();
-
-        this._btSwitch.setToggleState(this._bt.powered);
-
-        for (let row of this._btRows)
-            row.destroy();
-        this._btRows = [];
-        this._btDeviceSection.removeAll();
-
-        if (!this._bt.powered)
-            return;
-
-        for (let dev of this._bt.devices) {
-            let label = dev.alias;
-            if (dev.battery !== null && dev.battery !== undefined)
-                label += " — " + Math.round(dev.battery) + "%";
-
-            let row = new PopupMenu.PopupSwitchIconMenuItem(
-                label, dev.connected, this._btIconFor(dev.icon),
-                St.IconType.SYMBOLIC);
-            row.setStatus(dev.connected ? _("Connected") : null);
-
-            if (this._bt.isPending(dev.path))
-                row.setSensitive(false);
-
-            row.connect("toggled", (item, state) => {
-                item.setSensitive(false);
-                this._bt.setDeviceConnected(dev.path, state);
-            });
-
-            this._btDeviceSection.addMenuItem(row);
-            this._btRows.push(row);
-        }
-    }
-
     _btIconFor(bluezIcon) {
         const map = {
             "phone": "phone",
@@ -665,59 +1520,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         };
         return map[bluezIcon] || "bluetooth";
     }
-
-    /* ------------------------------------------ Brightness and volume */
-
-    _initSliders(card) {
-        /* Brightness first: BrightnessSlider only ever touches
-         * this._applet.menu (power:277), so we are a valid applet for it. */
-        if (PowerLib && typeof PowerLib.BrightnessSlider === "function") {
-            this._brightness = new PowerLib.BrightnessSlider(
-                this, _("Brightness"), "display-brightness",
-                "org.cinnamon.SettingsDaemon.Power.Screen", 0);
-            card.addMenuItem(this._brightness);
-
-            this._keyboardBacklight = new PowerLib.BrightnessSlider(
-                this, _("Keyboard backlight"), "keyboard-brightness",
-                "org.cinnamon.SettingsDaemon.Power.Keyboard", 0);
-            card.addMenuItem(this._keyboardBacklight);
-        }
-
-        if (!SoundLib || typeof SoundLib.VolumeSlider !== "function")
-            throw new Error("sound module did not provide VolumeSlider");
-
-        this._control = new Cvc.MixerControl({ name: "Cinnamon Control Center" });
-        this._volumeNorm = this._control.get_vol_max_norm();
-        this._volumeMax = this._volumeNorm;
-        this._output = null;
-        this._streams = [];
-
-        try {
-            this._soundSettings = new Gio.Settings({ schema_id: "org.cinnamon.desktop.sound" });
-            this._overampId = this._soundSettings.connect(
-                "changed::allow-amplified-volume", () => this._onOveramplificationChange());
-            this._onOveramplificationChange();
-        } catch (e) {
-            log_err("sound settings", e);
-        }
-
-        this._outputSlider = new SoundLib.VolumeSlider(this, null, _("Volume"), null);
-        card.addMenuItem(this._outputSlider);
-
-        this._appStreamSection = new PopupMenu.PopupMenuSection();
-        card.addMenuItem(this._appStreamSection);
-        this._streamSections = {};
-
-        this._control.connect("state-changed", () => this._onControlStateChanged());
-        this._control.connect("active-output-update", () => this._readOutput());
-        this._control.connect("stream-added", (c, id) => this._onStreamAdded(id));
-        this._control.connect("stream-removed", (c, id) => this._onStreamRemoved(id));
-        this._control.open();
-
-        /* Scrolling the panel icon adjusts volume, as the sound applet does. */
-        this.actor.connect("scroll-event", (actor, event) => this._onScroll(actor, event));
-    }
-
     _onOveramplificationChange() {
         let amplified = false;
         try {
@@ -727,7 +1529,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         if (this._outputSlider && this._output)
             this._outputSlider.connectWithStream(this._output);
     }
-
     _onControlStateChanged() {
         if (this._control.get_state() === Cvc.MixerControlState.READY) {
             this._readOutput();
@@ -735,13 +1536,11 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                 this._onStreamAdded(stream.id);
         }
     }
-
     _readOutput() {
         this._output = this._control.get_default_sink();
         if (this._outputSlider)
             this._outputSlider.connectWithStream(this._output);
     }
-
     _onStreamAdded(id) {
         let stream = this._control.lookup_stream_id(id);
         if (!stream || !(stream instanceof Cvc.MixerSinkInput))
@@ -753,7 +1552,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._appStreamSection.addMenuItem(section);
         this._streamSections[id] = section;
     }
-
     _onStreamRemoved(id) {
         let section = this._streamSections[id];
         if (section) {
@@ -761,59 +1559,13 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             delete this._streamSections[id];
         }
     }
-
     _onScroll(actor, event) {
         if (!this._outputSlider) return Clutter.EVENT_PROPAGATE;
         return this._outputSlider._onScrollEvent(actor, event);
     }
-
-    /* Required by the reused VolumeSlider (sound:171,176). */
     _notifyVolumeChange(stream) {
         Main.soundManager.play("volume");
     }
-
-    /* ---------------------------------------------------------- Media */
-
-    _initMedia(card) {
-        if (!SoundLib || typeof SoundLib.Player !== "function")
-            throw new Error("sound module did not provide Player");
-
-        this._players = {};
-        this._playerItems = [];
-        this._activePlayer = null;
-        this._playerSection = new PopupMenu.PopupMenuSection();
-        card.addMenuItem(this._playerSection);
-
-        Interfaces.getDBusAsync((proxy, error) => {
-            if (error) {
-                log_err("dbus for MPRIS", error);
-                return;
-            }
-            this._dbus = proxy;
-            let re = /^org\.mpris\.MediaPlayer2\./;
-
-            this._dbus.ListNamesRemote((names) => {
-                for (let n in names[0]) {
-                    let name = names[0][n];
-                    if (re.test(name))
-                        this._dbus.GetNameOwnerRemote(name,
-                            (owner) => this._addPlayer(name, owner[0]));
-                }
-            });
-
-            this._ownerChangedId = this._dbus.connectSignal("NameOwnerChanged",
-                (p, sender, [name, oldOwner, newOwner]) => {
-                    if (!re.test(name)) return;
-                    if (newOwner && !oldOwner)
-                        this._addPlayer(name, newOwner);
-                    else if (oldOwner && !newOwner)
-                        this._removePlayer(name, oldOwner);
-                    else
-                        this._changePlayerOwner(name, oldOwner, newOwner);
-                });
-        });
-    }
-
     _addPlayer(busName, owner) {
         if (this._players[owner]) {
             this._players[owner].busNames.push(busName);
@@ -832,7 +1584,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         this._activePlayer = owner;
         this._updatePlayerMenuItems();
     }
-
     _removePlayer(busName, owner) {
         let player = this._players[owner];
         if (!player) return;
@@ -850,118 +1601,17 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         }
         this._updatePlayerMenuItems();
     }
-
     _changePlayerOwner(busName, oldOwner, newOwner) {
         this._removePlayer(busName, oldOwner);
         this._addPlayer(busName, newOwner);
     }
-
-    /* --- the small contract the reused Player expects of its applet --- */
-
-    _updatePlayerMenuItems() {
-        let any = Object.keys(this._players).length > 0;
-        let show = any && this.showMediaPlayer;
-        let card = this._card("media");
-        if (card) card.actor.visible = show;
-    }
-
     passDesktopEntry(entry) {
         /* Only used by the sound applet to hide a player's tray icon. */
     }
-
     setAppletTextIcon(player, icon) {
         /* The panel icon is deliberately static: at 20px a state-varying icon
          * is noisy, and it keeps us off the stock icon state machines. */
     }
-
-    get extendedPlayerControl() {
-        return false;
-    }
-
-    /* --------------------------------------------------------- Battery */
-
-    _initBattery(card) {
-        this._deviceItems = [];
-        this._batterySection = new PopupMenu.PopupMenuSection();
-        card.addMenuItem(this._batterySection);
-
-        let powerCmd = firstProgram(["cinnamon-settings power"]);
-        if (powerCmd) {
-            let item = new PopupMenu.PopupIconMenuItem(
-                _("Power Settings…"), "preferences-system-power",
-                St.IconType.SYMBOLIC);
-            item.connect("activate", () => {
-                this.menu.close();
-                Util.spawnCommandLine(powerCmd);
-            });
-            card.addMenuItem(item);
-        }
-
-        this.aliases = global.settings.get_strv("device-aliases");
-
-        Interfaces.getDBusProxyAsync("org.cinnamon.SettingsDaemon.Power",
-                                     (proxy, error) => {
-            if (error) {
-                log_err("power proxy", error);
-                return;
-            }
-            this._powerProxy = proxy;
-            this._powerProxy.connect("g-properties-changed",
-                                     () => this._devicesChanged());
-            this._devicesChanged();
-        }, null);
-    }
-
-    _devicesChanged() {
-        if (!this._powerProxy || !PowerLib) return;
-
-        this._powerProxy.GetDevicesRemote((result, error) => {
-            for (let i of this._deviceItems) i.destroy();
-            this._deviceItems = [];
-            this._batterySection.removeAll();
-
-            this._primaryPercentage = null;
-            this._primaryTime = null;
-
-            if (error) return;
-
-            let devices = result[0] || [];
-            for (let device of devices) {
-                let [device_id, vendor, model, device_kind, icon,
-                     percentage, state, battery_level, seconds] = device;
-
-                if (device_kind === UPDeviceKind.LINE_POWER) continue;
-                if (state === UPDeviceState.UNKNOWN) continue;
-
-                let status = this._getDeviceStatus(state, seconds);
-
-                let item;
-                try {
-                    item = new PowerLib.DeviceItem(device, status, this.aliases);
-                } catch (e) {
-                    log_err("battery row", e);
-                    continue;
-                }
-                this._batterySection.addMenuItem(item);
-                this._deviceItems.push(item);
-
-                if (device_kind === UPDeviceKind.BATTERY &&
-                    this._primaryPercentage === null) {
-                    this._primaryPercentage = percentage;
-                    this._primaryTime = seconds;
-                }
-            }
-
-            let card = this._card("battery");
-            if (card) card.actor.visible = this._deviceItems.length > 0;
-
-            this._updateBatteryLabel();
-        });
-    }
-
-    /* power@cinnamon.org keeps this on its applet class rather than exporting
-     * it, so it is reimplemented here.  The string IDs are kept identical so
-     * they still resolve in the "cinnamon" textdomain. */
     _getDeviceStatus(state, seconds) {
         let time = Math.round(seconds / 60);
         let minutes = time % 60;
@@ -1003,7 +1653,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         return template.format(hours, ngettext("hour", "hours", hours),
                                minutes, ngettext("minute", "minutes", minutes));
     }
-
     _updateBatteryLabel() {
         if (this._primaryPercentage === null ||
             this._primaryPercentage === undefined ||
@@ -1027,55 +1676,9 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             default:                this.set_applet_label(pct);
         }
     }
-
-    /* ---------------------------------------------------------- Applet */
-
     _setKeybinding() {
         Main.keybindingManager.addHotKey("control-center-open-" + this.instance_id,
                                          this.keyOpen, () => this.menu.toggle());
-    }
-
-    on_applet_clicked(event) {
-        this.menu.toggle();
-    }
-
-    on_applet_removed_from_panel() {
-        try {
-            Main.keybindingManager.removeHotKey("control-center-open-" + this.instance_id);
-        } catch (e) {}
-
-        if (this._bt) {
-            this._bt.destroy();
-            this._bt = null;
-        }
-
-        if (this._nmClient && this._nmSignals) {
-            for (let id of this._nmSignals) {
-                try { this._nmClient.disconnect(id); } catch (e) {}
-            }
-            this._nmSignals = null;
-        }
-        for (let wrapper of (this._wifiDevices || [])) {
-            try { wrapper.destroy(); } catch (e) {}
-        }
-        this._wifiDevices = [];
-
-        /* Without this, reloading the applet leaks a PulseAudio client each
-         * time (visible in `pactl list clients`). */
-        if (this._control) {
-            try { this._control.close(); } catch (e) {}
-            this._control = null;
-        }
-
-        if (this._soundSettings && this._overampId) {
-            try { this._soundSettings.disconnect(this._overampId); } catch (e) {}
-        }
-
-        if (this._dbus && this._ownerChangedId) {
-            try { this._dbus.disconnectSignal(this._ownerChangedId); } catch (e) {}
-        }
-
-        this.settings.finalize();
     }
 }
 

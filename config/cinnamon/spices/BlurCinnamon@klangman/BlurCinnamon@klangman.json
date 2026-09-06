@@ -328,7 +328,7 @@
     "description": "Popup Menus  (Please read tooltip)",
     "tooltip": "Apply effects to panel popup menus. This option is intended for the Cinnamon (6.4) and Mint-Y dark desktop themes but might work well with other themes. Light themes are unlikely to give good results but might be made to work with some creative use of the dimming color settings and an appropriate background image. It overrides some theme settings to achieve a (semi-)transparent menu so that the blurred background is visible.",
     "default": false,
-    "value": true
+    "value": false
   },
   "enable-desktop-effects": {
     "type": "switch",

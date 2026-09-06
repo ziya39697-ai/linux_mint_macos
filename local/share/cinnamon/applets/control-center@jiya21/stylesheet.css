@@ -1,37 +1,202 @@
 /*
- * Control Center styling.
- *
- * Everything here is scoped to .control-center-menu so no other applet menu on
- * the desktop is affected.
+ * Control Center styling — a macOS-style tile grid.
+ * Everything is scoped to .control-center-menu so no other applet menu on the
+ * desktop is affected.
  */
 
 /*
  * WhiteSur-Dark-solid paints .popup-menu with an opaque 9-slice
- * (border-image: assets/menu-solid.svg).  BlurCinnamon only neutralises
- * background/gradient properties, so that image would keep painting over the
- * blurred backdrop and the menu would look solid.  Clearing it lets the blur
- * through.
+ * (border-image: assets/menu-solid.svg, cinnamon.css:317-322), which would
+ * square off our rounded corners.  Clear it and paint the background here.
  *
- * The background-color below is the no-blur fallback: when BlurCinnamon is
- * active it sets `background: transparent` inline on the menu actor, and
- * inline styles win in St, so the same rule works either way.
+ * Deliberately NOT blurred.  BlurCinnamon's popup blur is *static* (Dual
+ * Kawase against the wallpaper), so an open menu sampled the desktop rather
+ * than the window beneath it and appeared to punch a hole through that window.
+ * Dynamic blur would sample real windows but is the mode that is heavy and
+ * crash-prone on this Intel HD 6000, so the menu is simply near-opaque, which
+ * is how a normal macOS menu reads over a window anyway.
  */
 .popup-menu.control-center-menu {
     border-image: none;
-    background-color: rgba(28, 28, 30, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background-color: rgba(30, 30, 32, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 14px;
-    padding: 6px 0;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    padding: 0;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
 }
 
-/* macOS groups controls into rounded translucent tiles; the tiles do the
- * separating, so there are no separator lines in this menu. */
-.control-center-menu .control-center-card {
-    background-color: rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    padding: 6px 2px;
-    margin: 4px 8px;
+/* The battery menu is a plain list, so it keeps the theme's own item padding. */
+.popup-menu.cc-battery-menu .popup-menu-content {
+    padding: 8px 6px;
+}
+
+/* Panel: breathing room between the battery percentage and the glyph, the way
+ * macOS spaces its menu bar items. */
+.cc-panel-glyph {
+    padding-left: 9px;
+    padding-right: 2px;
+}
+
+/* The theme gives .popup-menu-content 1em 6px of padding (cinnamon.css:352-356).
+ * The grid does its own spacing, so zero it out for this menu only. */
+.popup-menu.control-center-menu .popup-menu-content {
+    padding: 0;
+}
+
+.control-center-menu .cc-page {
+    padding: 10px;
+}
+
+.control-center-menu .cc-grid {
+    spacing-rows: 8px;
+    spacing-columns: 8px;
+}
+
+/* ------------------------------------------------------------------ tiles */
+
+.control-center-menu .cc-tile {
+    background-color: rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
+    padding: 10px 12px;
+    spacing: 6px;
+}
+
+.control-center-menu .cc-tile-square {
+    width: 82px;
+    padding: 10px 6px;
+}
+
+.control-center-menu .cc-square-box {
+    spacing: 4px;
+}
+
+.control-center-menu .cc-tile-square:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.control-center-menu .cc-tile-title {
+    font-size: 0.95em;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-tile-sub {
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* ------------------------------------------------- connectivity rows */
+
+.control-center-menu .cc-conn-row {
+    spacing: 10px;
+    padding: 4px 0;
+}
+
+.control-center-menu .cc-conn-label {
+    border-radius: 8px;
+    padding: 2px 6px;
+}
+
+.control-center-menu .cc-conn-label:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+/* --------------------------------------------------- circular toggles */
+
+.control-center-menu .cc-circle {
+    width: 34px;
+    height: 34px;
+    border-radius: 9999px;
+    background-color: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    border: none;
+}
+
+.control-center-menu .cc-circle:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+}
+
+/* State is a real class, not a :checked pseudo-class, so it does not depend on
+ * how the theme resolves descendant pseudo-selectors. */
+.control-center-menu .cc-circle-on {
+    background-color: #0a84ff;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-circle-on:hover {
+    background-color: #339dff;
+}
+
+.control-center-menu .cc-circle-dim {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.35);
+}
+
+/* -------------------------------------------------- fat pill sliders */
+
+.control-center-menu .cc-fatslider {
+    height: 30px;
+}
+
+/*
+ * Beats the theme's `.popup-slider-menu-item` (0,2,0 vs 0,1,0), which sets
+ * -slider-height: 4px (cinnamon.css:198-213).
+ *
+ * The pill radius is computed, not themed: min(width, sliderHeight)/2
+ * (popupMenu.js:703), so 26px height gives a 13px radius.  Matching
+ * -slider-handle-radius keeps the fill edge sweeping exactly between the two
+ * cap centres, and `color: transparent` hides the handle dot
+ * (popupMenu.js:751-753) for the knob-less macOS look.
+ */
+.control-center-menu .cc-fat-groove {
+    height: 26px;
+    min-width: 0;
+    border: none;
+    padding: 0;
+    -slider-height: 26px;
+    -slider-handle-radius: 13px;
+    -slider-border-width: 0;
+    -slider-border-color: transparent;
+    -slider-active-border-color: transparent;
+    -slider-background-color: rgba(255, 255, 255, 0.18);
+    -slider-active-background-color: #ffffff;
+    color: transparent;
+}
+
+/* The icon rides inside the groove, dark against the white filled portion. */
+.control-center-menu .cc-fatslider-iconbin {
+    padding-left: 7px;
+}
+
+.control-center-menu .cc-fatslider-iconbin StIcon {
+    icon-size: 16px;
+    color: rgba(0, 0, 0, 0.55);
+}
+
+/* -------------------------------------------------- detail pages */
+
+.control-center-menu .cc-detail-header {
+    spacing: 6px;
+    padding: 2px 4px 8px 4px;
+}
+
+.control-center-menu .cc-back-button {
+    width: 26px;
+    height: 26px;
+    border-radius: 9999px;
+    color: #ffffff;
+}
+
+.control-center-menu .cc-back-button:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.control-center-menu .cc-detail-title {
+    font-weight: bold;
+}
+
+.control-center-menu .control-center-wifi-scroll {
+    max-height: 320px;
 }
 
 .control-center-menu .popup-menu-item {
@@ -39,28 +204,8 @@
     border-radius: 6px;
 }
 
-/* Fatter, more macOS-like sliders than the theme's 4px default. */
-.control-center-menu .popup-slider-menu-item {
-    min-width: 18em;
-    padding: 0.5em 0.9em;
-    -slider-height: 6px;
-    -slider-handle-radius: 9px;
-    -slider-background-color: rgba(255, 255, 255, 0.18);
-    -slider-border-color: transparent;
-    -slider-active-background-color: #ffffff;
-    -slider-active-border-color: transparent;
-    -slider-border-width: 0;
-    -slider-handle-border-width: 0;
-}
-
 .control-center-menu .popup-subtitle-menu-item {
     font-weight: bold;
-}
-
-/* A busy area can produce far more networks than fit on screen.  menu.box is a
- * plain BoxLayout and would clip, so the SSID list gets its own scroll view. */
-.control-center-menu .control-center-wifi-scroll {
-    max-height: 320px;
 }
 
 .control-center-menu .popup-inactive-menu-item {
