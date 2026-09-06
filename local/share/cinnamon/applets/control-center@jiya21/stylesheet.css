@@ -211,6 +211,19 @@
     color: #ffffff;
 }
 
+.control-center-menu .cc-np-sub {
+    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.control-center-menu .cc-np-art-glyph {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.control-center-menu .cc-np-art-cover {
+    background-color: transparent;
+}
+
 .control-center-menu .cc-np-controls {
     spacing: 4px;
 }
@@ -489,6 +502,8 @@
 }
 
 .control-center-menu.cc-light .cc-tile-sub,
+.control-center-menu.cc-light .cc-np-sub,
+.control-center-menu.cc-light .cc-np-art-glyph,
 .control-center-menu.cc-light .cc-np-dim,
 .control-center-menu.cc-light .popup-inactive-menu-item {
     color: rgba(0, 0, 0, 0.55);

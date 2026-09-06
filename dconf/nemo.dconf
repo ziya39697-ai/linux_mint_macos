@@ -3,7 +3,7 @@ computer-icon-visible=false
 home-icon-visible=false
 network-icon-visible=false
 show-orphaned-desktop-icons=true
-trash-icon-visible=true
+trash-icon-visible=false
 
 [preferences]
 show-compact-view-icon-toolbar=false
@@ -12,7 +12,7 @@ show-reload-icon-toolbar=false
 show-up-icon-toolbar=false
 
 [window-state]
-geometry='791x404+415+332'
+geometry='791x404+77+117'
 maximized=false
 my-computer-expanded=true
 network-expanded=true

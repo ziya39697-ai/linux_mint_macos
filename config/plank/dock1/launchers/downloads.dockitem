@@ -3,4 +3,4 @@ Launcher=file:///home/jiya21/Downloads
 SortBy=modified
 DirectoryStyle=1
 ShowHiddenFiles=false
-LargeIcons=true
+LargeIcons=false

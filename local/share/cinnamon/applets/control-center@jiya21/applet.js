@@ -504,8 +504,16 @@ class NowPlayingTile {
         this.actor = new St.BoxLayout({ vertical: true, style_class: 'cc-tile cc-nowplaying' });
         this._art = new St.Bin({ style_class: 'cc-np-art' });
         this.actor.add(this._art, { x_align: St.Align.START, x_fill: false });
+        this._artIcon = new St.Icon({ icon_name: 'xsi-audio-x-generic-symbolic',
+                                      icon_type: St.IconType.SYMBOLIC, icon_size: 20,
+                                      style_class: 'cc-np-art-glyph' });
+        this._art.set_child(this._artIcon);
         this._title = new St.Label({ text: _("Not Playing"), style_class: 'cc-np-title' });
+        this._title.clutter_text.ellipsize = 3;
         this.actor.add(this._title, { x_fill: true });
+        this._sub = new St.Label({ text: "", style_class: 'cc-np-sub' });
+        this._sub.clutter_text.ellipsize = 3;
+        this.actor.add(this._sub, { x_fill: true });
 
         let row = new St.BoxLayout({ style_class: 'cc-np-controls' });
         const btn = (icon, cb) => {
@@ -536,6 +544,25 @@ class NowPlayingTile {
         this._sync();
     }
 
+    _setArt(path) {
+        if (path === this._artPath) return;
+        this._artPath = path;
+        if (!path) {
+            this._art.set_child(this._artIcon);
+            this._art.remove_style_class_name('cc-np-art-cover');
+            return;
+        }
+        try {
+            let file = Gio.File.new_for_path(path);
+            let img = new St.Icon({ gicon: new Gio.FileIcon({ file: file }),
+                                    icon_type: St.IconType.FULLCOLOR, icon_size: 44 });
+            this._art.set_child(img);
+            this._art.add_style_class_name('cc-np-art-cover');
+        } catch (e) {
+            this._art.set_child(this._artIcon);
+        }
+    }
+
     /* called again by the applet whenever the player's status/metadata move */
     _sync() {
         let p = this._player;
@@ -544,6 +571,10 @@ class NowPlayingTile {
         let title = (active && p._title && p._title !== _("Unknown Title")) ? p._title
                   : (active ? _("Now Playing") : _("Not Playing"));
         this._title.text = title;
+        let artist = (active && p._artist && p._artist !== _("Unknown Artist")) ? p._artist : "";
+        this._sub.text = artist;
+        this._sub.visible = !!artist;
+        this._setArt(active && p._ccCoverPath ? p._ccCoverPath : null);
         this._play.child.icon_name = playing ? "xsi-media-playback-pause-symbolic"
                                              : "xsi-media-playback-start-symbolic";
         for (let b of [this._prev, this._play, this._next]) {
@@ -1070,7 +1101,6 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         if (this._brightTile) wide(this._brightTile.actor, true);
         if (this._soundTile)  wide(this._soundTile.actor, true);
         if (this._slidersFailed) wide(this._failTile(_("Sliders unavailable")), false);
-        if (this._mediaTile)  wide(this._mediaTile, true);
 
         /* Bottom row: the keyboard-backlight slider three columns wide, the
          * Screen Recording round button in the fourth. */
@@ -1609,10 +1639,13 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         });
     }
 
+    /* sound@'s Player builds a tall widget (cover, labels, seek bar, five
+     * buttons) for every player; macOS shows one Now Playing tile.  The
+     * Player objects stay alive purely as MPRIS data sources for the tile —
+     * their actors are parked in a hidden box and never enter the grid. */
     _updatePlayerMenuItems() {
-        if (!this._mediaTile) return;
-        let any = Object.keys(this._players || {}).length > 0;
-        this._mediaTile.visible = any && this.showMediaPlayer;
+        if (this._mediaTile) this._mediaTile.visible = false;
+        if (this._nowPlaying) this._nowPlaying.actor.visible = this.showMediaPlayer;
         this._syncNowPlaying();
     }
 
@@ -2174,6 +2207,15 @@ class ControlCenterApplet extends Applet.TextIconApplet {
         player.busNames = [busName];
         /* sound@'s Player has no change signal; wrap the two setters that
          * every status/metadata update funnels through (sound@:820, :756). */
+        if (typeof player._showCover === "function") {
+            let origCover = player._showCover;
+            player._showCover = (path) => {
+                player._ccCoverPath = path || null;
+                let r = origCover.call(player, path);
+                try { this._syncNowPlaying(); } catch (e) {}
+                return r;
+            };
+        }
         for (let fn of ["_setStatus", "_setMetadata"]) {
             if (typeof player[fn] !== "function") continue;
             let orig = player[fn];
