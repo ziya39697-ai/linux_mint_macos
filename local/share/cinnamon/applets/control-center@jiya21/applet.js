@@ -680,6 +680,7 @@ class MacBatteryIcon {
         this._pct = 0;
         this._onAC = false;
         this._lowPower = false;
+        this._showPct = true;
         this.setSize(logicalSize);
         this.actor.connect('repaint', (a) => this._repaint(a));
     }
@@ -704,13 +705,21 @@ class MacBatteryIcon {
         this.actor.queue_repaint();
     }
 
+    /* Golden Gate "Show Percentage": the number lives inside the body. */
+    setShowPct(on) {
+        if (this._showPct === !!on) return;
+        this._showPct = !!on;
+        this.actor.queue_repaint();
+    }
+
     _repaint(area) {
         let cr = area.get_context();
         let [W, H] = area.get_surface_size();
         let fg = area.get_theme_node().get_foreground_color();
         BatteryDraw.drawBattery(cr, W, H,
                                 [fg.red / 255, fg.green / 255, fg.blue / 255],
-                                global.ui_scale, this._pct, this._onAC, this._lowPower);
+                                global.ui_scale, this._pct, this._onAC, this._lowPower,
+                                this._showPct);
         cr.$dispose();
     }
 }
@@ -2300,9 +2309,14 @@ class ControlCenterApplet extends Applet.TextIconApplet {
                                minutes, ngettext("minute", "minutes", minutes));
     }
     _updateBatteryLabel() {
+        /* macOS 27 puts the percentage inside the battery body; the text label
+         * beside it is only used for the time-remaining variants. */
+        if (this._batteryGlyph)
+            this._batteryGlyph.setShowPct(this.labelinfo === "percentage" ||
+                                          this.labelinfo === "percentage_time");
         if (this._primaryPercentage === null ||
             this._primaryPercentage === undefined ||
-            this.labelinfo === "nothing") {
+            this.labelinfo === "nothing" || this.labelinfo === "percentage") {
             this.set_applet_label("");
             return;
         }
@@ -2318,8 +2332,8 @@ class ControlCenterApplet extends Applet.TextIconApplet {
 
         switch (this.labelinfo) {
             case "time":            this.set_applet_label(time); break;
-            case "percentage_time": this.set_applet_label(time ? pct + " " + time : pct); break;
-            default:                this.set_applet_label(pct);
+            case "percentage_time": this.set_applet_label(time); break;
+            default:                this.set_applet_label("");
         }
     }
     _setKeybinding() {

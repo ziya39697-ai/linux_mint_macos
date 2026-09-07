@@ -11,11 +11,11 @@
     "labelinfo": {
         "type": "combobox",
         "default": "percentage",
-        "description": "Battery label in the panel",
+        "description": "Battery percentage in the panel",
         "options": {
-            "Percentage": "percentage",
+            "Inside the battery (macOS 27)": "percentage",
             "Time remaining": "time",
-            "Percentage and time": "percentage_time",
+            "Inside the battery, time beside it": "percentage_time",
             "Hide": "nothing"
         }
     },

@@ -59,9 +59,14 @@ With blur off, the stylesheet's `background-color` is a translucent fallback.
 ## Panel battery glyph
 
 The panel battery is drawn with Cairo (`lib/batteryGlyph.js`), not taken from
-the icon theme, so it can match the macOS menu bar battery: a wide body with a
-faint frame, a solid fill that tracks the exact percentage, a bolt while on AC,
-red at or under 20%, yellow while the `power-saver` profile is active.
+the icon theme, so it can match the macOS 27 Golden Gate menu bar battery (the
+iOS one): a translucent rounded body with a nub, a solid fill that tracks the
+exact percentage, and the number inside the body, knocked out of the fill where
+they overlap.  A bolt follows the number while on AC; red at or under 20%,
+yellow while the `power-saver` profile is active.  The "Battery percentage in
+the panel" setting chooses whether the number is drawn inside; the text label
+beside the glyph only ever carries the time-remaining variants.  The lock
+screen draws the same glyph (`~/.local/share/cinnamon-screensaver-mac`).
 
 Preview every state without reloading Cinnamon:
 

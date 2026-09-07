@@ -79,6 +79,12 @@ class UnlockDialog(BaseWindow):
         self.password_entry.placeholder_text = _("Enter Password")
         self.password_entry.set_placeholder_text(self.password_entry.placeholder_text)
         self.password_entry.set_width_chars(16)
+        # Replace the reveal-password icon with the unlock arrow.
+        trackers.con_tracker_get().disconnect(self.password_entry, "icon-press", self.password_entry.on_icon_pressed)
+        self.password_entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "go-next-symbolic")
+        self.password_entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, _("Unlock"))
+        self.password_entry.set_icon_activatable(Gtk.EntryIconPosition.SECONDARY, True)
+        trackers.con_tracker_get().connect(self.password_entry, "icon-press", self.on_entry_icon_pressed)
 
         trackers.con_tracker_get().connect(self.password_entry,
                                            "changed",
@@ -95,7 +101,8 @@ class UnlockDialog(BaseWindow):
         self.entry_box.pack_start(self.password_entry, False, False, 4)
 
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.entry_box.pack_end(button_box, False, False, 0)
+        # Golden Gate: the two round buttons are not shown; the entry's own
+        # trailing icon is the unlock arrow (see below).
 
         self.auth_unlock_button = TransparentButton("go-next-symbolic", Gtk.IconSize.BUTTON)
         self.auth_unlock_button.set_tooltip_text(_("Unlock"))
@@ -105,14 +112,14 @@ class UnlockDialog(BaseWindow):
 
         button_box.pack_start(self.auth_unlock_button, False, False, 4)
 
-        status.focusWidgets = [self.password_entry, self.auth_unlock_button]
+        status.focusWidgets = [self.password_entry]
 
         if not settings.get_boolean("disable-user-switching"):
             self.auth_switch_button = TransparentButton("screensaver-switch-users-symbolic", Gtk.IconSize.LARGE_TOOLBAR)
             self.auth_switch_button.set_tooltip_text(_("Switch User"))
             trackers.con_tracker_get().connect(self.auth_switch_button, "clicked", self.on_switch_user_clicked)
             button_box.pack_start(self.auth_switch_button, False, False, 4)
-            status.focusWidgets.append(self.auth_switch_button)
+            pass  # switch-user button not shown
 
         vbox_messages = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
 
@@ -303,6 +310,12 @@ class UnlockDialog(BaseWindow):
             return Gdk.EVENT_STOP
 
         return Gdk.EVENT_PROPAGATE
+
+    def on_entry_icon_pressed(self, entry, icon_pos, event):
+        if icon_pos == Gtk.EntryIconPosition.SECONDARY:
+            self.on_unlock_clicked()
+        elif icon_pos == Gtk.EntryIconPosition.PRIMARY:
+            entry.on_icon_pressed(entry, icon_pos, event)
 
     def on_unlock_clicked(self, button=None):
         """

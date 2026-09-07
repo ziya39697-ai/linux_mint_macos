@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OVERLAY = os.path.join(HERE, "overlay")
 SYSTEM = "/usr/share/cinnamon-screensaver"
 MAIN = os.path.join(SYSTEM, "cinnamon-screensaver-main.py")
-MODULES = ("monitorView", "clock", "unlock", "stage")
+MODULES = ("monitorView", "clock", "unlock", "stage", "widgets.powerWidget")
 
 sys.path[:0] = [OVERLAY, SYSTEM]
 os.chdir(SYSTEM)

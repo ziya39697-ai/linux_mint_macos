@@ -1,6 +1,6 @@
 --- /usr/share/cinnamon-screensaver/unlock.py	2025-12-16 20:57:17.000000000 +0530
-+++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/unlock.py	2026-09-07 06:13:22.448423953 +0530
-@@ -52,28 +52,33 @@
++++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/unlock.py	2026-09-07 06:39:39.986507227 +0530
+@@ -52,28 +52,39 @@
          self.bounce_rect = None
          self.bounce_count = 0
  
@@ -34,10 +34,16 @@
 +        self.password_entry.placeholder_text = _("Enter Password")
 +        self.password_entry.set_placeholder_text(self.password_entry.placeholder_text)
 +        self.password_entry.set_width_chars(16)
++        # Replace the reveal-password icon with the unlock arrow.
++        trackers.con_tracker_get().disconnect(self.password_entry, "icon-press", self.password_entry.on_icon_pressed)
++        self.password_entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "go-next-symbolic")
++        self.password_entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, _("Unlock"))
++        self.password_entry.set_icon_activatable(Gtk.EntryIconPosition.SECONDARY, True)
++        trackers.con_tracker_get().connect(self.password_entry, "icon-press", self.on_entry_icon_pressed)
  
          trackers.con_tracker_get().connect(self.password_entry,
                                             "changed",
-@@ -87,12 +92,12 @@
+@@ -87,12 +98,13 @@
                                             "activate",
                                             self.on_auth_enter_key)
  
@@ -45,14 +51,33 @@
 +        self.entry_box.pack_start(self.password_entry, False, False, 4)
  
          button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-         self.entry_box.pack_end(button_box, False, False, 0)
+-        self.entry_box.pack_end(button_box, False, False, 0)
++        # Golden Gate: the two round buttons are not shown; the entry's own
++        # trailing icon is the unlock arrow (see below).
  
 -        self.auth_unlock_button = TransparentButton("screensaver-unlock-symbolic", Gtk.IconSize.LARGE_TOOLBAR)
 +        self.auth_unlock_button = TransparentButton("go-next-symbolic", Gtk.IconSize.BUTTON)
          self.auth_unlock_button.set_tooltip_text(_("Unlock"))
          trackers.con_tracker_get().connect(self.auth_unlock_button,
                                             "clicked",
-@@ -173,6 +178,9 @@
+@@ -100,14 +112,14 @@
+ 
+         button_box.pack_start(self.auth_unlock_button, False, False, 4)
+ 
+-        status.focusWidgets = [self.password_entry, self.auth_unlock_button]
++        status.focusWidgets = [self.password_entry]
+ 
+         if not settings.get_boolean("disable-user-switching"):
+             self.auth_switch_button = TransparentButton("screensaver-switch-users-symbolic", Gtk.IconSize.LARGE_TOOLBAR)
+             self.auth_switch_button.set_tooltip_text(_("Switch User"))
+             trackers.con_tracker_get().connect(self.auth_switch_button, "clicked", self.on_switch_user_clicked)
+             button_box.pack_start(self.auth_switch_button, False, False, 4)
+-            status.focusWidgets.append(self.auth_switch_button)
++            pass  # switch-user button not shown
+ 
+         vbox_messages = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+ 
+@@ -173,6 +185,9 @@
          self.box.show_all()
          self.password_entry.hide()
          self.auth_unlock_button.hide()
@@ -62,7 +87,7 @@
  
      def initialize_auth_client(self):
          return self.auth_client.initialize()
-@@ -220,7 +228,7 @@
+@@ -220,7 +235,7 @@
          self.auth_unlock_button.show_all()
  
          if "password:" in prompt.lower():
@@ -71,3 +96,16 @@
          else:
              prompt = prompt.replace(":", "")
  
+@@ -296,6 +311,12 @@
+ 
+         return Gdk.EVENT_PROPAGATE
+ 
++    def on_entry_icon_pressed(self, entry, icon_pos, event):
++        if icon_pos == Gtk.EntryIconPosition.SECONDARY:
++            self.on_unlock_clicked()
++        elif icon_pos == Gtk.EntryIconPosition.PRIMARY:
++            entry.on_icon_pressed(entry, icon_pos, event)
++
+     def on_unlock_clicked(self, button=None):
+         """
+         Callback for the unlock button.  Activates the 'progress' animation

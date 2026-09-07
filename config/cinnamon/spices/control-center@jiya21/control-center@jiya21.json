@@ -12,11 +12,11 @@
     "labelinfo": {
         "type": "combobox",
         "default": "percentage",
-        "description": "Battery label in the panel",
+        "description": "Battery percentage in the panel",
         "options": {
-            "Percentage": "percentage",
+            "Inside the battery (macOS 27)": "percentage",
             "Time remaining": "time",
-            "Percentage and time": "percentage_time",
+            "Inside the battery, time beside it": "percentage_time",
             "Hide": "nothing"
         },
         "value": "percentage"
@@ -65,5 +65,5 @@
         "description": "Show the Now Playing section",
         "value": true
     },
-    "__md5__": "12d04063bafd83af445ae5037af15b2c"
+    "__md5__": "e352a70139d14ebba3963fe355decb16"
 }

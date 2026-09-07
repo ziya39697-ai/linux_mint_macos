@@ -58,7 +58,16 @@
 }
 .csstage .passwordentry:backdrop { color: white; font-family: inherit; font-size: 12px; }
 .csstage .passwordentry image.left { padding-right: 6px; }
-.csstage .passwordentry image.right { color: alpha(white, 0.80); }
+.csstage .passwordentry image.right {
+    /* the unlock arrow: a small light disc at the trailing edge, as on macOS */
+    color: black;
+    background-color: alpha(white, 0.85);
+    border-radius: 50%;
+    padding: 2px;
+    margin: 2px 0 2px 4px;
+    -gtk-icon-transform: scale(0.8);
+}
+.csstage .passwordentry image.right:hover { background-color: white; }
 
 /* Round glass buttons: unlock arrow, switch user */
 .csstage .transparentbutton {

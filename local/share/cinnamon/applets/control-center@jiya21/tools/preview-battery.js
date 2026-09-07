@@ -16,13 +16,15 @@ const H = 16 * scale, W = Math.round(H * Draw.BATTERY_ASPECT);
 const PAD = 6 * scale;
 
 const states = [
-    { pct: 100, ac: false, lp: false },
-    { pct: 74,  ac: false, lp: false },
-    { pct: 74,  ac: true,  lp: false },
-    { pct: 20,  ac: false, lp: false },
-    { pct: 8,   ac: false, lp: false },
-    { pct: 55,  ac: false, lp: true  },
-    { pct: 100, ac: true,  lp: false },
+    { pct: 100, ac: false, lp: false, show: true  },
+    { pct: 74,  ac: false, lp: false, show: true  },
+    { pct: 49,  ac: true,  lp: false, show: true  },
+    { pct: 20,  ac: false, lp: false, show: true  },
+    { pct: 8,   ac: false, lp: false, show: true  },
+    { pct: 55,  ac: false, lp: true,  show: true  },
+    { pct: 100, ac: true,  lp: false, show: true  },
+    { pct: 74,  ac: false, lp: false, show: false },
+    { pct: 49,  ac: true,  lp: false, show: false },
 ];
 
 let surf = new Cairo.ImageSurface(Cairo.Format.ARGB32,
@@ -37,7 +39,7 @@ states.forEach((s, i) => {
     cr.save();
     cr.translate(PAD, PAD + i * (H + PAD));
     cr.pushGroup();
-    Draw.drawBattery(cr, W, H, [1, 1, 1], scale, s.pct, s.ac, s.lp);
+    Draw.drawBattery(cr, W, H, [1, 1, 1], scale, s.pct, s.ac, s.lp, s.show);
     cr.popGroupToSource();
     cr.paint();
     cr.restore();
