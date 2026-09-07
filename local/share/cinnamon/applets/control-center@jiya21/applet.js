@@ -1475,6 +1475,34 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             if (dark) m.actor.remove_style_class_name('cc-light');
             else      m.actor.add_style_class_name('cc-light');
         }
+        this._syncBlurTint(dark);
+    }
+
+    /* BlurCinnamon paints the panel (and popups, tooltips, overview) as blur
+     * plus a colour blend.  A black blend is right for dark mode, but it
+     * keeps the menu bar dark while the theme's icons turn dark too, so in
+     * light mode the blend flips to white, as macOS's light menu bar.  The
+     * extension watches its settings file, so editing the value is enough. */
+    _syncBlurTint(dark) {
+        let path = GLib.get_user_config_dir() +
+                   "/cinnamon/spices/BlurCinnamon@klangman/BlurCinnamon@klangman.json";
+        if (!GLib.file_test(path, GLib.FileTest.EXISTS)) return;
+        try {
+            let [ok, bytes] = GLib.file_get_contents(path);
+            if (!ok) return;
+            let conf = JSON.parse(imports.byteArray.toString(bytes));
+            /* macOS light menu bar is a good deal whiter than the dark one
+             * is black, so the blend strength moves with the colour. */
+            let wantColor   = dark ? "rgb(0,0,0)" : "rgb(255,255,255)";
+            let wantOpacity = dark ? 40 : 62;
+            if (!conf.blendColor || !conf.opacity) return;
+            if (conf.blendColor.value === wantColor && conf.opacity.value === wantOpacity) return;
+            conf.blendColor.value = wantColor;
+            conf.opacity.value = wantOpacity;
+            GLib.file_set_contents(path, JSON.stringify(conf, null, 4));
+        } catch (e) {
+            log_err("blur tint", e);
+        }
     }
 
     _setDarkMode(want) {

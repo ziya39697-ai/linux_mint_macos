@@ -44,7 +44,7 @@ class MacBatteryGlyph(Gtk.DrawingArea):
         super(MacBatteryGlyph, self).__init__()
         self.pct = max(0, min(100, int(percentage or 0)))
         self.on_ac = state in (UPOWER_STATE_CHARGING, UPOWER_STATE_PENDING_CHARGE, UPOWER_STATE_FULLY_CHARGED)
-        self.set_size_request(int(self.HEIGHT * 2.25), self.HEIGHT)
+        self.set_size_request(int(self.HEIGHT * 1.8), self.HEIGHT)
         self.set_valign(Gtk.Align.CENTER)
         self.connect("draw", self.on_draw)
 

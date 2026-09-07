@@ -1,5 +1,5 @@
 --- /usr/share/cinnamon-screensaver/unlock.py	2025-12-16 20:57:17.000000000 +0530
-+++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/unlock.py	2026-09-07 06:39:39.986507227 +0530
++++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/unlock.py	2026-09-07 06:49:00.532215913 +0530
 @@ -52,28 +52,39 @@
          self.bounce_rect = None
          self.bounce_count = 0

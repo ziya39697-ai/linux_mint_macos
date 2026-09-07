@@ -14,7 +14,7 @@
  * colour where they do not.  Red at or under LOW_PCT, yellow in Low Power Mode.
  */
 
-var BATTERY_ASPECT  = 2.25;                  /* area width / height */
+var BATTERY_ASPECT  = 1.8;                   /* area width / height */
 var BATTERY_LOW_PCT = 20;
 var BODY_ALPHA      = 0.36;                  /* translucent body + nub */
 var SYSTEM_RED      = [1.00, 0.27, 0.23];    /* #FF453A */

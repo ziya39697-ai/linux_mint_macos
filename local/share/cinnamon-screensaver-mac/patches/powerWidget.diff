@@ -1,5 +1,5 @@
 --- /usr/share/cinnamon-screensaver/widgets/powerWidget.py	2025-12-16 20:57:17.000000000 +0530
-+++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/widgets/powerWidget.py	2026-09-07 06:39:39.986766864 +0530
++++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/widgets/powerWidget.py	2026-09-07 06:49:00.532467840 +0530
 @@ -1,6 +1,8 @@
  #!/usr/bin/python3
  
@@ -41,7 +41,7 @@
 +        super(MacBatteryGlyph, self).__init__()
 +        self.pct = max(0, min(100, int(percentage or 0)))
 +        self.on_ac = state in (UPOWER_STATE_CHARGING, UPOWER_STATE_PENDING_CHARGE, UPOWER_STATE_FULLY_CHARGED)
-+        self.set_size_request(int(self.HEIGHT * 2.25), self.HEIGHT)
++        self.set_size_request(int(self.HEIGHT * 1.8), self.HEIGHT)
 +        self.set_valign(Gtk.Align.CENTER)
 +        self.connect("draw", self.on_draw)
 +
