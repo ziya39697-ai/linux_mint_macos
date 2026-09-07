@@ -2,6 +2,7 @@
 computer-icon-visible=false
 home-icon-visible=false
 network-icon-visible=false
+show-desktop-icons=false
 show-orphaned-desktop-icons=true
 trash-icon-visible=false
 
@@ -12,8 +13,8 @@ show-reload-icon-toolbar=false
 show-up-icon-toolbar=false
 
 [window-state]
-geometry='791x404+77+117'
-maximized=true
+geometry='791x404+310+118'
+maximized=false
 my-computer-expanded=true
 network-expanded=true
 sidebar-bookmark-breakpoint=5

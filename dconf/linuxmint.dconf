@@ -1,6 +1,6 @@
 [install]
 flatpak-remotes=['flathub::https://dl.flathub.org/repo/::False']
-installed-apps=['apt:bpfcc-tools', 'apt:bpftrace', 'apt:broadcom-sta-dkms', 'apt:claude-desktop', 'apt:conky-all', 'apt:containerd.io', 'apt:cursor', 'apt:docker-buildx-plugin', 'apt:docker-ce', 'apt:docker-ce-cli', 'apt:docker-compose-plugin', 'apt:fonts-symbola', 'apt:git', 'apt:google-chrome-stable', 'apt:kdenlive', 'apt:linux-hwe-6.14-tools-6.14.0-37', 'apt:plank', 'apt:python3-bpfcc', 'apt:smartmontools', 'apt:ubuntu-kernel-accessories', 'apt:xsensors']
+installed-apps=['apt:bpfcc-tools', 'apt:bpftrace', 'apt:broadcom-sta-dkms', 'apt:claude-desktop', 'apt:conky-all', 'apt:containerd.io', 'apt:cursor', 'apt:docker-buildx-plugin', 'apt:docker-ce', 'apt:docker-ce-cli', 'apt:docker-compose-plugin', 'apt:fonts-inter', 'apt:fonts-symbola', 'apt:git', 'apt:google-chrome-stable', 'apt:kdenlive', 'apt:linux-hwe-6.14-tools-6.14.0-37', 'apt:npm', 'apt:plank-reloaded', 'apt:python3-bpfcc', 'apt:python3-pip', 'apt:smartmontools', 'apt:ubuntu-kernel-accessories', 'apt:ulauncher', 'apt:virtualenv', 'apt:xsensors', 'fp:flathub:app/io.github.qwersyk.Newelle/x86_64/stable']
 
 [updates]
 default-repo-is-ok=true

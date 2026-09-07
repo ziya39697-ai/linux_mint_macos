@@ -104,10 +104,52 @@
     min-height: 26px;
 }
 
-/* --- Content --- */
+/* --- Content.  The `:not(:selected)` matters: without it this rule
+       (four classes) outranks the theme's `.view:selected` and paints
+       the base colour over every selected item, so selection looks
+       like nothing happened. --- */
 .nemo-window.background .nemo-window-pane,
-.nemo-window.background .nemo-window-pane .view {
+.nemo-window.background .nemo-window-pane .view:not(:selected) {
     background-color: @theme_base_color;
+}
+
+/* --- Selection, macOS style.  WhiteSur's #0860F2 is a colder blue
+       than Apple's accent, so the accent is pinned here; both gtk.css
+       variants import this file, so one definition covers light+dark.
+       Icon view gets a rounded translucent tile behind icon+label
+       (Finder), list view a solid full-width row.  The theme puts a
+       350ms `transition: all` on .view, which smears across canvas
+       items as they repaint -- killed for the canvas item. --- */
+@define-color finder_accent #0a84ff;
+
+.nemo-window.background .nemo-window-pane .nemo-canvas-item {
+    border-radius: 8px;
+    transition: none;
+}
+.nemo-window.background .nemo-window-pane .nemo-canvas-item:selected,
+.nemo-window.background .nemo-window-pane .view:selected {
+    background-color: alpha(@finder_accent, 0.30);
+    background-image: none;
+    color: @theme_fg_color;
+}
+.nemo-window.background .nemo-window-pane treeview.view:selected,
+.nemo-window.background .nemo-window-pane treeview.view:selected:focus {
+    background-color: @finder_accent;
+    color: white;
+}
+
+/* --- Drag rubber-band: translucent accent fill, crisper border.
+       Nemo reads the fill straight off the icon container's own style
+       context with a `rubberband` class added, so the band's node IS
+       the `.view` widget -- the `.view.rubberband` form is required to
+       outrank the content rule above, which would otherwise repaint
+       the fill with the base colour and leave a hollow outline.  The
+       bare node selector covers the list view's GTK-drawn band. --- */
+.nemo-window.background .nemo-window-pane .view.rubberband,
+.nemo-window.background .nemo-window-pane rubberband,
+.nemo-window.background .nemo-window-pane .rubberband {
+    background-color: alpha(@finder_accent, 0.25);
+    border: 1px solid alpha(@finder_accent, 0.80);
 }
 
 /* --- Status bar: just the summary text; the sidebar toggle
@@ -131,3 +173,4 @@
 .nemo-window.background .toolbar:not(.primary-toolbar) label {
     color: alpha(@theme_fg_color, 0.7);
 }
+
