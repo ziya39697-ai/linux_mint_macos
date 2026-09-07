@@ -698,9 +698,11 @@ class AppsWindow(Gtk.Window):
         dock = plank_height()
         width = min(WIN_W, wa.width - 60)
         height = min(WIN_H, wa.height - dock - 40)
-        x = wa.x + (wa.width - width) // 2
-        # Tahoe floats it a little above centre of the free area.
-        y = wa.y + max(16, (wa.height - dock - height) * 2 // 5)
+        # Centred on the screen; the whole monitor, not just the area above
+        # the dock, so the window sits in the middle of the display.
+        geo = self.get_display().get_monitor_at_point(wa.x + wa.width // 2, wa.y + wa.height // 2).get_geometry()
+        x = geo.x + (geo.width - width) // 2
+        y = geo.y + (geo.height - height) // 2
 
         self.set_theme_class()
         self.backdrop = capture_backdrop(x, y, width, height)
