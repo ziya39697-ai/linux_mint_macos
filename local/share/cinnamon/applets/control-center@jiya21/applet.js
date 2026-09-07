@@ -793,6 +793,7 @@ function themeInstalled(name) {
     return false;
 }
 
+const BLUR_UUID    = "BlurCinnamon@klangman";
 const NIGHT_SCHEMA = "org.cinnamon.settings-daemon.plugins.color";
 const NIGHT_KEY    = "night-light-enabled";
 const DND_SCHEMA   = "org.cinnamon.desktop.notifications";
@@ -1494,12 +1495,18 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             /* macOS light menu bar is a good deal whiter than the dark one
              * is black, so the blend strength moves with the colour. */
             let wantColor   = dark ? "rgb(0,0,0)" : "rgb(255,255,255)";
-            let wantOpacity = dark ? 40 : 62;
+            let wantOpacity = dark ? 55 : 78;
             if (!conf.blendColor || !conf.opacity) return;
             if (conf.blendColor.value === wantColor && conf.opacity.value === wantOpacity) return;
             conf.blendColor.value = wantColor;
             conf.opacity.value = wantOpacity;
             GLib.file_set_contents(path, JSON.stringify(conf, null, 4));
+            /* The extension only takes the blend at (re)load, and a theme
+             * change reloads it before this write lands, so reload it now
+             * that the file is right. */
+            const Extension = imports.ui.extension;
+            if (Extension.getExtension(BLUR_UUID))
+                Extension.reloadExtension(BLUR_UUID, Extension.Type.EXTENSION);
         } catch (e) {
             log_err("blur tint", e);
         }
@@ -1511,6 +1518,7 @@ class ControlCenterApplet extends Applet.TextIconApplet {
             log_err("dark mode", new Error(theme + " is not installed"));
             return;
         }
+        this._syncBlurTint(want);
         this._ifaceSettings.set_string("gtk-theme", theme);
         let ctheme = settingsIfPresent(CTHEME_SCHEMA);
         if (ctheme) ctheme.set_string("name", theme);

@@ -749,7 +749,7 @@
         "max": 100,
         "default": 40,
         "step": 1,
-        "value": 40
+        "value": 55
     },
     "blendColor": {
         "type": "colorchooser",
