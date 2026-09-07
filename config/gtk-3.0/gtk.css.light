@@ -1,1 +1,2 @@
 @import url("finder.css");
+@import url("lockscreen.css");

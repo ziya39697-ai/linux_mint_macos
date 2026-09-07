@@ -143,7 +143,7 @@ for f in "$STAGE"/config/autostart/*.desktop; do
   copy "$f" "$HOME/.config/autostart/$(basename "$f")"
 done
 copy "$STAGE/config/gtk-3.0/bookmarks" "$HOME/.config/gtk-3.0/bookmarks"
-for f in gtk.css.dark gtk.css.light finder.css; do
+for f in gtk.css.dark gtk.css.light finder.css lockscreen.css; do
   copy "$STAGE/config/gtk-3.0/$f" "$HOME/.config/gtk-3.0/$f"
 done
 if [[ -f "$STAGE/config/gtk-3.0/gtk.css.link" ]] && [[ ! -e "$HOME/.config/gtk-3.0/gtk.css" || -L "$HOME/.config/gtk-3.0/gtk.css" ]]; then
@@ -151,6 +151,24 @@ if [[ -f "$STAGE/config/gtk-3.0/gtk.css.link" ]] && [[ ! -e "$HOME/.config/gtk-3
   say "gtk-3.0/gtk.css -> $(cat "$STAGE/config/gtk-3.0/gtk.css.link")"
 fi
 copy "$STAGE/config/mimeapps.list"     "$HOME/.config/mimeapps.list"
+
+# Lock screen (Golden Gate): patched-module overlay + D-Bus activation override + avatar.
+if [[ -d "$STAGE/local/share/cinnamon-screensaver-mac" ]]; then
+  run "mkdir -p '$HOME/.local/share/cinnamon-screensaver-mac'"
+  run "rsync -a '$STAGE/local/share/cinnamon-screensaver-mac/' '$HOME/.local/share/cinnamon-screensaver-mac/'"
+  run "chmod 755 '$HOME/.local/share/cinnamon-screensaver-mac/launcher' '$HOME/.local/share/cinnamon-screensaver-mac/main.py' '$HOME/.local/share/cinnamon-screensaver-mac/rebuild.sh'"
+  # The overlay was cut from the cinnamon-screensaver installed when the bundle was
+  # made; rebuild it from the one installed here so the patches apply to matching code.
+  run "'$HOME/.local/share/cinnamon-screensaver-mac/rebuild.sh'"
+  say "cinnamon-screensaver-mac (lock screen overlay, rebuilt against the installed screensaver)"
+fi
+copy "$STAGE/config/dbus-1/services/org.cinnamon.ScreenSaver.service" "$HOME/.local/share/dbus-1/services/org.cinnamon.ScreenSaver.service"
+copy "$STAGE/config/face.png" "$HOME/.face"
+if [[ -f "$STAGE/config/dbus-1/services/org.cinnamon.ScreenSaver.service" ]]; then
+  # Make the running session bus pick up the override and retire any stock instance.
+  run "dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true"
+  run "cinnamon-screensaver-command --exit >/dev/null 2>&1 || true"
+fi
 copy "$STAGE/config/conkyrc"           "$HOME/.conkyrc"
 copy "$STAGE/config/gitconfig"         "$HOME/.gitconfig"
 

@@ -13,7 +13,7 @@ show-up-icon-toolbar=false
 
 [window-state]
 geometry='791x404+77+117'
-maximized=false
+maximized=true
 my-computer-expanded=true
 network-expanded=true
 sidebar-bookmark-breakpoint=5

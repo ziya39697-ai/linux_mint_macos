@@ -46,6 +46,10 @@ There is no window-list applet — Plank does that job.
 | `config/bashrc.delta` | **Only** the lines appended to the stock `/etc/skel/.bashrc` |
 | `local/bin/launchpad` | The custom Python/GTK3 Launchpad (Applications window), mode 755 |
 | `local/share/plank/themes/macOS/` | The hand-authored frosted-glass dock theme |
+| `local/share/cinnamon-screensaver-mac/` | Golden Gate lock screen: `launcher` + `main.py` run the stock cinnamon-screensaver with four patched modules (`overlay/`), `patches/apply.py` regenerates them, `rebuild.sh` after a screensaver upgrade |
+| `config/dbus-1/services/` | Session-bus override that makes `org.cinnamon.ScreenSaver` activate that launcher instead of `/usr/bin/cinnamon-screensaver` |
+| `config/gtk-3.0/lockscreen.css` | Lock-screen stylesheet (pill password field, round avatar, flat status row), imported by both `gtk.css.*` |
+| `config/face.png` | `~/.face`, the avatar on the lock screen (macOS default silhouette; replace with a photo any time) |
 | `assets/` | Wallpaper |
 | `themes/` | `WhiteSur-Dark-solid` GTK/Cinnamon theme (4.1 MB) |
 | `icons/` | `WhiteSur`, `-dark`, `-light` (103 MB) + the `default` cursor stubs. WhiteSur's `xsi-*` place/device glyphs are tagged for colouring (see `tools/`) |
@@ -53,6 +57,23 @@ There is no window-list applet — Plank does that job.
 | `packages/intentional.txt` | The 21 packages actually chosen, per Mint's own record |
 | `packages/sources.list.d/` | The third-party apt repos those need |
 | `manifest.json` | Host/version metadata + sha256 of every file outside `icons/` |
+
+## Lock screen
+
+The lock screen is Cinnamon's own screensaver made to look like macOS Golden Gate:
+undimmed wallpaper, `Mon Sep 7` over a large translucent `6:13` at the top, the
+round avatar / name / pill password field near the bottom, battery top-right.
+Colours and shapes are CSS (`config/gtk-3.0/lockscreen.css`, user CSS outranks the
+screensaver's fallback stylesheet); fonts and formats are gsettings under
+`org.cinnamon.desktop.screensaver` (in `dconf/cinnamon.dconf`: Inter Display Bold
+100 / Inter Display Medium 17, `%-I:%M`, `%a %b %-d`, `floating-widgets false`).
+Layout, clock order and the removed 70 % shade are Python, so
+`local/share/cinnamon-screensaver-mac/` carries patched copies of `stage.py`,
+`clock.py`, `unlock.py`, `monitorView.py` loaded ahead of `/usr/share/cinnamon-screensaver`.
+If any patched module fails to import, `main.py` logs it and runs the stock
+screensaver, so the lock never fails. After `apt` upgrades cinnamon-screensaver run
+`~/.local/share/cinnamon-screensaver-mac/rebuild.sh`; it stops with a clear error
+if upstream moved the code the patches expect.
 
 ## Two things worth knowing
 

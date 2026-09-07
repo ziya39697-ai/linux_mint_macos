@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.cinnamon.ScreenSaver
+Exec=/home/jiya21/.local/share/cinnamon-screensaver-mac/launcher

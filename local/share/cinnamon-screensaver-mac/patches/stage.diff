@@ -1,0 +1,139 @@
+--- /usr/share/cinnamon-screensaver/stage.py	2025-12-16 20:57:17.000000000 +0530
++++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/stage.py	2026-09-07 06:13:22.447702388 +0530
+@@ -28,6 +28,12 @@
+ 
+ FLOATER_POSITIONING_TIMEOUT = 30
+ 
++# macOS lock-screen geometry (fractions of the monitor height):
++# clock top edge, gap between clock and album art, unlock dialog bottom margin.
++MAC_CLOCK_TOP = 0.075
++MAC_ALBUMART_GAP = 20
++MAC_UNLOCK_BOTTOM = 0.06
++
+ class Stage(Gtk.Window):
+     """
+     The Stage is the toplevel window of the entire screensaver while
+@@ -280,7 +286,7 @@
+                 print("Problem setting up clock widget: %s" % str(e))
+                 self.clock_widget = None
+ 
+-            if OnScreenKeyboard:
++            if False:  # on-screen keyboard disabled (Golden Gate overlay)
+                 try:
+                     self.setup_osk()
+                 except Exception as e:
+@@ -853,91 +859,38 @@
+             allocation.width = nat_rect.width
+             allocation.height = nat_rect.height
+ 
+-            allocation.x = monitor_rect.x + (monitor_rect.width / 2) - (allocation.width / 2)
+-            allocation.y = monitor_rect.y + (monitor_rect.height / 2) - (allocation.height / 2)
++            # macOS: avatar / name / password sit near the bottom of the screen.
++            allocation.x = int(monitor_rect.x + (monitor_rect.width / 2) - (allocation.width / 2))
++            allocation.y = int(monitor_rect.y + monitor_rect.height - allocation.height
++                               - monitor_rect.height * MAC_UNLOCK_BOTTOM)
+ 
+             return True
+ 
+         if isinstance(child, Floating):
+             """
+-            ClockWidget and AlbumArt behave differently depending on if status.Awake is True or not.
+-
+-            The widgets' halign and valign properties are used to store their gross position on the
+-            monitor.  This limits the number of possible positions to (3 * 3 * n_monitors) when our
+-            screensaver is not Awake, and the widgets have an internal timer that randomizes halign,
+-            valign, and current monitor every so many seconds, calling a queue_resize on itself after
+-            each timer tick (which forces this function to run).
++            macOS layout: the clock is fixed top-centre of the active monitor and the
++            album art (Now Playing) sits directly beneath it.  The stock 3x3 floating
++            grid and its random repositioning are not used.
+             """
+-            if settings.get_allow_floating():
+-                if self.floaters_need_update:
+-                    alignments = [int(Gtk.Align.START), int(Gtk.Align.END), int(Gtk.Align.CENTER)]
+-                    n_monitors = status.screen.get_n_monitors()
+-                    alignment_positions = []
+-                    for i in range(n_monitors):
+-                        for halign in alignments:
+-                            for valign in alignments:
+-                                alignment_positions.append((i, halign, valign))
+-
+-                    for floater in self.floaters:
+-                        position = alignment_positions.pop(random.randint(0, len(alignment_positions) - 1))
+-                        floater.set_next_position(*position)
+-
+-                    self.floaters_need_update = False
++            current_monitor = status.screen.get_mouse_monitor()
++            monitor_rect = status.screen.get_monitor_geometry(current_monitor)
+ 
+-                child.apply_next_position()
++            child.set_awake_position(current_monitor)
++            child.apply_next_position()
+ 
+             min_rect, nat_rect = child.get_preferred_size()
+-            current_monitor = child.current_monitor
+-            monitor_rect = status.screen.get_monitor_geometry(current_monitor)
+-            region_w = monitor_rect.width / 3
+-            region_h = monitor_rect.height / 3
+-
+-            if status.Awake:
+-                current_monitor = status.screen.get_mouse_monitor()
+-                monitor_rect = status.screen.get_monitor_geometry(current_monitor)
+-                region_w = monitor_rect.width / 3
+-                region_h = monitor_rect.height / 3
+-
+-                """
+-                If we're Awake, force the clock to track to the active monitor, and be aligned to
+-                the left-center.  The albumart widget aligns right-center.
+-                """
+-                unlock_mw, unlock_nw = self.unlock_dialog.get_preferred_width()
+-                """
+-                If, for whatever reason, we need more than 1/3 of the screen to fully display
+-                the unlock dialog, reduce our available region width to accommodate it, reducing
+-                the allocation for the floating widgets as required.
+-                """
+-                if unlock_nw > region_w:
+-                    region_w = (monitor_rect.width - unlock_nw) / 2
+-
+-                child.set_awake_position(current_monitor)
+-                child.apply_next_position()
+-
+-            # Restrict the widget size to the allowable region sizes if necessary.
+-            allocation.width = min(nat_rect.width, region_w)
+-            allocation.height = min(nat_rect.height, region_h)
+-
+-            # Calculate padding required to center widgets within their particular 1/9th of the monitor
+-            padding_left = padding_right = (region_w - allocation.width) / 2
+-            padding_top = padding_bottom = (region_h - allocation.height) / 2
+-
+-            halign = child.get_halign()
+-            valign = child.get_valign()
+-
+-            if halign == Gtk.Align.START:
+-                allocation.x = monitor_rect.x + padding_left
+-            elif halign == Gtk.Align.CENTER:
+-                allocation.x = monitor_rect.x + (monitor_rect.width / 2) - (allocation.width / 2)
+-            elif halign == Gtk.Align.END:
+-                allocation.x = monitor_rect.x + monitor_rect.width - allocation.width - padding_right
+-
+-            if valign == Gtk.Align.START:
+-                allocation.y = monitor_rect.y + padding_top
+-            elif valign == Gtk.Align.CENTER:
+-                allocation.y = monitor_rect.y + (monitor_rect.height / 2) - (allocation.height / 2)
+-            elif valign == Gtk.Align.END:
+-                allocation.y = monitor_rect.y + monitor_rect.height - allocation.height - padding_bottom
++            allocation.width = min(nat_rect.width, monitor_rect.width)
++            allocation.height = min(nat_rect.height, monitor_rect.height)
++            allocation.x = int(monitor_rect.x + (monitor_rect.width / 2) - (allocation.width / 2))
++
++            clock_top = monitor_rect.y + int(monitor_rect.height * MAC_CLOCK_TOP)
++            if isinstance(child, ClockWidget):
++                allocation.y = clock_top
++            else:
++                clock_h = 0
++                if self.clock_widget is not None:
++                    clock_h = self.clock_widget.get_preferred_size()[1].height
++                allocation.y = clock_top + clock_h + MAC_ALBUMART_GAP
+ 
+             return True
+ 

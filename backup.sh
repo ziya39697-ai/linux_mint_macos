@@ -64,13 +64,20 @@ mkdir -p "$CFG/gtk-3.0"
 cp -a "$HOME/.config/gtk-3.0/bookmarks" "$CFG/gtk-3.0/" 2>/dev/null && say "gtk-3.0/bookmarks"
 # gtk.css is a symlink owned by the Control Center's Dark Mode tile:
 # gtk.css.dark (dark-only cinnamon-settings restyle + Finder skin) or
-# gtk.css.light (Finder skin only); finder.css is the Nemo-as-Finder
-# stylesheet both import. Keep the files and remember the link target.
-for f in gtk.css.dark gtk.css.light finder.css; do
+# gtk.css.light (Finder skin only); finder.css (Nemo-as-Finder) and
+# lockscreen.css (cinnamon-screensaver) are the stylesheets both import.
+# Keep the files and remember the link target.
+for f in gtk.css.dark gtk.css.light finder.css lockscreen.css; do
   cp -a "$HOME/.config/gtk-3.0/$f" "$CFG/gtk-3.0/" 2>/dev/null && say "gtk-3.0/$f"
 done
 rm -f "$CFG/gtk-3.0/gtk.css.link"
 [[ -L "$HOME/.config/gtk-3.0/gtk.css" ]] && readlink "$HOME/.config/gtk-3.0/gtk.css" > "$CFG/gtk-3.0/gtk.css.link" && say "gtk-3.0/gtk.css -> $(cat "$CFG/gtk-3.0/gtk.css.link")"
+# Lock screen: the session-bus service override that makes org.cinnamon.ScreenSaver
+# start the Golden Gate launcher (local/share/cinnamon-screensaver-mac/) instead of
+# /usr/bin/cinnamon-screensaver, and the avatar the unlock dialog shows.
+mkdir -p "$CFG/dbus-1/services"
+cp -a "$HOME/.local/share/dbus-1/services/org.cinnamon.ScreenSaver.service" "$CFG/dbus-1/services/" 2>/dev/null && say "dbus-1/services/org.cinnamon.ScreenSaver.service"
+cp -a "$HOME/.face" "$CFG/face.png" 2>/dev/null && say "face.png (~/.face lock-screen avatar)"
 cp -a "$HOME/.config/mimeapps.list"     "$CFG/mimeapps.list" 2>/dev/null && say "mimeapps.list"
 cp -a "$HOME/.conkyrc"                  "$CFG/conkyrc"       2>/dev/null && say "conkyrc"
 cp -a "$HOME/.gitconfig"                "$CFG/gitconfig"     2>/dev/null && say "gitconfig"
@@ -95,6 +102,15 @@ say "share/applications ($(ls "$BUNDLE/local/share/applications" | wc -l) .deskt
 rm -rf "$BUNDLE/local/share/plank"; mkdir -p "$BUNDLE/local/share/plank"
 rsync -a "$HOME/.local/share/plank/themes" "$BUNDLE/local/share/plank/"
 say "share/plank/themes ($(ls "$BUNDLE/local/share/plank/themes" | tr '\n' ' '))"
+
+# Golden Gate lock screen: launcher + patched cinnamon-screensaver modules.
+# The D-Bus service file under config/dbus-1/ is what activates it.
+rm -rf "$BUNDLE/local/share/cinnamon-screensaver-mac"
+if [[ -d "$HOME/.local/share/cinnamon-screensaver-mac" ]]; then
+  rsync -a --exclude '__pycache__' \
+    "$HOME/.local/share/cinnamon-screensaver-mac" "$BUNDLE/local/share/"
+  say "share/cinnamon-screensaver-mac ($(ls "$BUNDLE/local/share/cinnamon-screensaver-mac/overlay" | tr '\n' ' '))"
+fi
 
 # Cinnamon extensions (Blur Cinnamon et al). This tree was empty at the first
 # audit, so the section did not exist then; without it the blur setup would be

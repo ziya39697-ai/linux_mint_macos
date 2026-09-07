@@ -1,0 +1,10 @@
+#!/bin/sh
+# D-Bus activated in place of /usr/bin/cinnamon-screensaver
+# (see ~/.local/share/dbus-1/services/org.cinnamon.ScreenSaver.service).
+if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
+  echo "cinnamon-screensaver is disabled in wayland sessions. Exiting."
+  exit 1
+fi
+export GI_TYPELIB_PATH="/usr/libexec/cinnamon-screensaver/girepository-1.0"
+export LD_LIBRARY_PATH="/usr/libexec/cinnamon-screensaver"
+exec /usr/bin/python3 "$(dirname "$0")/main.py" "$@"

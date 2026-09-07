@@ -1,4 +1,5 @@
 @import url("finder.css");
+@import url("lockscreen.css");
 
 /* ============================================================
    Sonoma-style restyle of Cinnamon System Settings

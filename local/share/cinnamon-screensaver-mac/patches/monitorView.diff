@@ -1,0 +1,24 @@
+--- /usr/share/cinnamon-screensaver/monitorView.py	2025-12-16 20:57:17.000000000 +0530
++++ /home/jiya21/.local/share/cinnamon-screensaver-mac/overlay/monitorView.py	2026-09-07 06:13:22.448686329 +0530
+@@ -9,6 +9,8 @@
+ from baseWindow import BaseWindow
+ from util import settings, utils, trackers
+ 
++MAC_SHADE = 0.0
++
+ class WallpaperStack(Gtk.Stack):
+     """
+     WallpaperStack implements a crossfade when changing backgrounds.
+@@ -69,8 +71,10 @@
+         significant gradient vertically framing the unlock dialog
+         when Awake.
+         """
+-        cr.set_source_rgba(0.0, 0.0, 0.0, 0.7)
+-        cr.paint()
++        # macOS shows the wallpaper undimmed on the lock screen.
++        if MAC_SHADE > 0:
++            cr.set_source_rgba(0.0, 0.0, 0.0, MAC_SHADE)
++            cr.paint()
+         return False
+ 
+ class MonitorView(BaseWindow):

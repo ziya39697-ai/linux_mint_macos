@@ -19,7 +19,7 @@ window-effect-speed=0
 
 [desktop/background]
 picture-options='zoom'
-picture-uri='file:///home/jiya21/.local/share/desktop-assets/wallpaper-sonoma.jpg'
+picture-uri='file:///home/jiya21/Downloads/Golden_Dark_6k.png'
 
 [desktop/background/slideshow]
 delay=15
@@ -58,7 +58,14 @@ send-events='disabled-on-external-mouse'
 speed=0.61764705882352944
 
 [desktop/screensaver]
+date-format='%a %b %-d'
+floating-widgets=false
+font-date='Inter Display Medium 17'
+font-message='Inter 12'
+font-time='Inter Display Bold 100'
 layout-group=0
+time-format='%-I:%M'
+use-custom-format=true
 
 [desktop/sound]
 event-sounds=false
